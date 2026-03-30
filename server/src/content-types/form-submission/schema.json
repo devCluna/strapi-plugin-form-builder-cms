@@ -1,0 +1,34 @@
+{
+  "kind": "collectionType",
+  "collectionName": "formcraft_submissions",
+  "info": {
+    "singularName": "form-submission",
+    "pluralName": "form-submissions",
+    "displayName": "Form Submission",
+    "description": "Submitted form data"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": { "visible": false },
+    "content-type-builder": { "visible": false }
+  },
+  "attributes": {
+    "form": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::strapi-plugin-form-builder-cms.form",
+      "inversedBy": "submissions"
+    },
+    "data": { "type": "json", "required": true },
+    "metadata": { "type": "json", "default": {} },
+    "ipAddress": { "type": "string" },
+    "userAgent": { "type": "string" },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "read", "archived"],
+      "default": "new"
+    }
+  }
+}

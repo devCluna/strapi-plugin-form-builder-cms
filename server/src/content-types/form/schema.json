@@ -1,0 +1,43 @@
+{
+  "kind": "collectionType",
+  "collectionName": "formcraft_forms",
+  "info": {
+    "singularName": "form",
+    "pluralName": "forms",
+    "displayName": "Form",
+    "description": "Dynamic form definitions"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "content-manager": { "visible": false },
+    "content-type-builder": { "visible": false }
+  },
+  "attributes": {
+    "title": { "type": "string", "required": true, "maxLength": 255 },
+    "slug": { "type": "uid", "targetField": "title", "required": true },
+    "description": { "type": "text" },
+    "fields": { "type": "json", "required": true, "default": [] },
+    "conditionalLogic": { "type": "json", "default": [] },
+    "settings": {
+      "type": "json",
+      "default": {
+        "submitButtonText": "Enviar",
+        "successMessage": "Formulario enviado correctamente",
+        "enableHoneypot": true,
+        "enableRateLimit": true,
+        "maxSubmissionsPerHour": 60,
+        "notificationEmails": [],
+        "redirectUrl": "",
+        "customCss": ""
+      }
+    },
+    "submissions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::strapi-plugin-form-builder-cms.form-submission",
+      "mappedBy": "form"
+    }
+  }
+}
