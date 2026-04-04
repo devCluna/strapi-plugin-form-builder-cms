@@ -4,9 +4,22 @@ export default {
   async submit(ctx: any) {
     const { slug } = ctx.params;
     try {
+      const body = ctx.request.body;
+      const raw = (body && typeof body === 'object' && 'data' in body) ? body.data : body;
+      // normalize checkbox-group keys: { 'field[]': v } → { field: [v] }
+      const data: Record<string, any> = {};
+      for (const [k, v] of Object.entries(raw || {})) {
+        if (k.endsWith('[]')) {
+          const name = k.slice(0, -2);
+          if (!data[name]) data[name] = [];
+          (data[name] as any[]).push(v);
+        } else {
+          data[k] = v;
+        }
+      }
       const result = await strapi.plugin(PLUGIN_ID).service('submission').submit(
         slug,
-        ctx.request.body,
+        data,
         {
           ip: ctx.request.ip,
           userAgent: ctx.request.headers['user-agent'] || '',
@@ -20,7 +33,9 @@ export default {
       } else if (error.name === 'NotFoundError') {
         return ctx.notFound('Form not found');
       } else {
-        throw error;
+        console.error('[sfb] unhandled submit error:', error?.message, error?.stack);
+        ctx.status = 500;
+        ctx.body = { success: false, message: error?.message || 'Internal server error' };
       }
     }
   },

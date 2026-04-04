@@ -34,15 +34,20 @@ export default ({ strapi }: { strapi: any }) => ({
       return { success: true, successMessage: form.settings?.successMessage };
     }
 
-    await strapi.db.query(SUBMISSION_UID).create({
-      data: {
-        form: form.id,
-        data: body,
-        ipAddress: meta.ip,
-        userAgent: meta.userAgent,
-        status: 'new',
-      },
-    });
+    try {
+      await strapi.db.query(SUBMISSION_UID).create({
+        data: {
+          form: form.id,
+          data: body,
+          ipAddress: meta.ip,
+          userAgent: meta.userAgent,
+          status: 'new',
+        },
+      });
+    } catch (createErr: any) {
+      console.error('[sfb] create error:', createErr?.message, createErr?.stack);
+      throw createErr;
+    }
 
     return { success: true, successMessage: form.settings?.successMessage };
   },
