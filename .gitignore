@@ -102,6 +102,10 @@ public/uploads/*
 dist
 build
 
+# Compiled JS files inside src (TypeScript sources only)
+server/src/**/*.js
+admin/src/**/*.js
+
 
 ############################
 # Node.js
