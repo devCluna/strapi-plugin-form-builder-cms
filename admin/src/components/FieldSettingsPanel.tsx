@@ -5,7 +5,6 @@ import {
   Typography,
   TextInput,
   Textarea,
-  Toggle,
   Button,
   IconButton,
   Field,
@@ -66,7 +65,13 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
   };
 
   const addValidation = () => {
-    update({ validation: [...field.validation, { type: 'required' }] });
+    const usedTypes = field.validation.map((r) => r.type);
+    const defaultType =
+      field.type === 'number'  ? (usedTypes.includes('min') ? (usedTypes.includes('max') ? 'pattern' : 'max') : 'min') :
+      field.type === 'email'   ? (usedTypes.includes('email') ? 'minLength' : 'email') :
+      field.type === 'url'     ? (usedTypes.includes('url')   ? 'minLength' : 'url')   :
+      usedTypes.includes('minLength') ? (usedTypes.includes('maxLength') ? 'pattern' : 'maxLength') : 'minLength';
+    update({ validation: [...field.validation, { type: defaultType }] });
   };
 
   const updateValidation = (index: number, patch: Partial<ValidationRule>) => {
@@ -87,13 +92,13 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
     <Box
       padding={4}
       background="neutral0"
-      style={{ width: 280, minWidth: 280, overflowY: 'auto', borderLeft: '1px solid #ddd' }}
+      style={{ width: 280, minWidth: 280, overflowY: 'auto', alignSelf: 'stretch', borderLeft: '1px solid var(--strapi-neutral-200)' }}
     >
       <Typography variant="beta" marginBottom={4}>
         Field settings
       </Typography>
 
-      <Flex direction="column" gap={3}>
+      <Flex direction="column" gap={3} alignItems="stretch">
         {!isDecorative && (
           <>
             <LabeledInput
@@ -117,15 +122,27 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
               onChange={(v) => update({ helpText: v })}
             />
 
-            <Flex justifyContent="space-between" alignItems="center">
-              <Typography>Required</Typography>
-              <Toggle
-                checked={field.required}
-                onChange={() => update({ required: !field.required })}
-                onLabel="Yes"
-                offLabel="No"
-              />
-            </Flex>
+            <Box>
+              <Typography variant="pi" fontWeight="semiBold" marginBottom={1}>
+                Required
+              </Typography>
+              <Flex gap={2}>
+                <Button
+                  variant={!field.required ? 'default' : 'secondary'}
+                  size="S"
+                  onClick={() => update({ required: false })}
+                >
+                  No
+                </Button>
+                <Button
+                  variant={field.required ? 'default' : 'secondary'}
+                  size="S"
+                  onClick={() => update({ required: true })}
+                >
+                  Yes
+                </Button>
+              </Flex>
+            </Box>
 
             <Box>
               <Typography variant="pi" fontWeight="semiBold" marginBottom={1}>
@@ -216,23 +233,41 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
               </Button>
             </Flex>
             <Flex direction="column" gap={2}>
-              {field.validation.map((rule, i) => (
-                <Box key={i} padding={2} background="neutral100" borderRadius="4px">
+              {field.validation.map((rule, i) => {
+                const usedTypes = field.validation
+                  .filter((_, j) => j !== i)
+                  .map((r) => r.type);
+
+                const isNumber = field.type === 'number';
+                const isEmail  = field.type === 'email';
+                const isUrl    = field.type === 'url';
+
+                const available = [
+                  !isNumber && { value: 'minLength', label: 'Min. length' },
+                  !isNumber && { value: 'maxLength', label: 'Max. length' },
+                  isNumber  && { value: 'min',       label: 'Min. value'  },
+                  isNumber  && { value: 'max',       label: 'Max. value'  },
+                  !isEmail  && { value: 'email',     label: 'Email'       },
+                  !isUrl    && { value: 'url',       label: 'URL'         },
+                  { value: 'pattern', label: 'Pattern (regex)' },
+                ].filter((opt): opt is { value: string; label: string } =>
+                  !!opt && (opt.value === rule.type || !usedTypes.includes(opt.value))
+                );
+
+                return (
+                <Box key={i} padding={2} background="neutral100" hasRadius>
                   <Flex gap={2} alignItems="center" marginBottom={2}>
                     <Field.Root style={{ flex: 1 }}>
                       <SingleSelect
                         value={rule.type}
-                        onChange={(val: string) => updateValidation(i, { type: val })}
+                        onChange={(val) => updateValidation(i, { type: String(val), value: undefined, message: '' })}
                         size="S"
                       >
-                        <SingleSelectOption value="required">Required</SingleSelectOption>
-                        <SingleSelectOption value="minLength">Min. length</SingleSelectOption>
-                        <SingleSelectOption value="maxLength">Max. length</SingleSelectOption>
-                        <SingleSelectOption value="min">Min. value</SingleSelectOption>
-                        <SingleSelectOption value="max">Max. value</SingleSelectOption>
-                        <SingleSelectOption value="email">Email</SingleSelectOption>
-                        <SingleSelectOption value="url">URL</SingleSelectOption>
-                        <SingleSelectOption value="pattern">Pattern (regex)</SingleSelectOption>
+                        {available.map((opt) => (
+                          <SingleSelectOption key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SingleSelectOption>
+                        ))}
                       </SingleSelect>
                     </Field.Root>
                     <IconButton label="Delete" onClick={() => removeValidation(i)} variant="ghost">
@@ -255,7 +290,8 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                     size="S"
                   />
                 </Box>
-              ))}
+                );
+              })}
             </Flex>
           </Box>
         )}

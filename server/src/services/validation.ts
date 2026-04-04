@@ -33,12 +33,31 @@ const validation = {
 
       if (field.required && this.isEmpty(value)) {
         const reqRule = field.validation?.find((v) => v.type === 'required');
-        fieldErrors.push(reqRule?.message || `${field.label} es obligatorio`);
+        fieldErrors.push(reqRule?.message || `${field.label} is required`);
       }
 
-      if (this.isEmpty(value) && !field.required) continue;
+      if (this.isEmpty(value) && !field.required) {
+        const hasLengthOrValueRule = (field.validation || []).some((r) =>
+          ['minLength', 'min'].includes(r.type)
+        );
+        if (!hasLengthOrValueRule) continue;
+      }
+
+      // auto-validate based on field type
+      if (!this.isEmpty(value)) {
+        if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
+          fieldErrors.push(`${field.label}: enter a valid email address`);
+        }
+        if (field.type === 'url') {
+          try { new URL(String(value)); } catch { fieldErrors.push(`${field.label}: enter a valid URL`); }
+        }
+        if (field.type === 'number' && isNaN(Number(value))) {
+          fieldErrors.push(`${field.label}: enter a valid number`);
+        }
+      }
 
       for (const rule of field.validation || []) {
+        if (rule.type === 'required') continue; // handled above
         const error = this.runRule(rule, value, field, data);
         if (error) fieldErrors.push(error);
       }
@@ -59,39 +78,39 @@ const validation = {
   ): string | null {
     switch (rule.type) {
       case 'minLength':
-        if (String(value).length < rule.value)
-          return rule.message || `Mínimo ${rule.value} caracteres`;
+        if (String(value).length < Number(rule.value))
+          return rule.message || `Minimum ${rule.value} characters`;
         break;
       case 'maxLength':
-        if (String(value).length > rule.value)
-          return rule.message || `Máximo ${rule.value} caracteres`;
+        if (String(value).length > Number(rule.value))
+          return rule.message || `Maximum ${rule.value} characters`;
         break;
       case 'min':
-        if (Number(value) < rule.value)
-          return rule.message || `El valor mínimo es ${rule.value}`;
+        if (Number(value) < Number(rule.value))
+          return rule.message || `Minimum value is ${rule.value}`;
         break;
       case 'max':
-        if (Number(value) > rule.value)
-          return rule.message || `El valor máximo es ${rule.value}`;
+        if (Number(value) > Number(rule.value))
+          return rule.message || `Maximum value is ${rule.value}`;
         break;
       case 'pattern':
         if (!new RegExp(rule.value).test(String(value)))
-          return rule.message || `Formato inválido`;
+          return rule.message || `Invalid format`;
         break;
       case 'email':
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value)))
-          return rule.message || `Email inválido`;
+          return rule.message || `Enter a valid email address`;
         break;
       case 'url':
         try {
           new URL(String(value));
         } catch {
-          return rule.message || `URL inválida`;
+          return rule.message || `Enter a valid URL`;
         }
         break;
       case 'matchField':
         if (value !== allData[rule.value])
-          return rule.message || `Los campos no coinciden`;
+          return rule.message || `Fields do not match`;
         break;
     }
     return null;
