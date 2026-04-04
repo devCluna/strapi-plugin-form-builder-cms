@@ -8,6 +8,17 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Renders a modal that displays an embeddable HTML snippet for a given form and provides a one-click copy action.
+ *
+ * The component returns `null` when `open` is `false`. When visible, it shows a preformatted snippet containing a container div
+ * with `id="sfb-form-<formId>"` and a script tag that loads the embed script from the current origin with `data-form-id` set.
+ *
+ * @param formId - The form identifier inserted into the snippet's container id and `data-form-id` attribute
+ * @param open - Controls whether the modal is visible
+ * @param onClose - Callback invoked when the modal is closed
+ * @returns The modal element when `open` is `true`, otherwise `null`
+ */
 export function EmbedModal({ formId, open, onClose }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -24,7 +35,7 @@ export function EmbedModal({ formId, open, onClose }: Props) {
   };
 
   return (
-    <Modal.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Modal.Root open={open} onOpenChange={(v: boolean) => !v && onClose()}>
       <Modal.Content style={{ maxWidth: 600, width: '100%' }}>
         <Modal.Header>
           <Typography variant="beta">Embed this form</Typography>

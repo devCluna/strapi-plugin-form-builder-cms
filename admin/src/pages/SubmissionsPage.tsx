@@ -22,6 +22,13 @@ import { useFormsApi } from '../api';
 import { Form, FormField, FormSubmission } from '../types';
 import { PLUGIN_ID } from '../pluginId';
 
+/**
+ * Render the submissions management page for a specific form.
+ *
+ * Loads and displays form metadata, submission list, and statistics; provides controls to filter by status, view submission details, mark submissions as read, and delete submissions.
+ *
+ * @returns The React element for the Submissions page (table, filters, detail modal, and delete confirmation modal).
+ */
 export function SubmissionsPage() {
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
@@ -93,7 +100,7 @@ export function SubmissionsPage() {
           <SingleSelect
             aria-label="Filter by status"
             value={statusFilter}
-            onChange={(val) => setStatusFilter(String(val))}
+            onChange={(val: string | number) => setStatusFilter(String(val))}
             placeholder="All statuses"
             size="S"
           >
