@@ -283,6 +283,16 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Render a modal preview of a form using the provided title, fields, and settings.
+ *
+ * @param title - The preview title displayed in the modal header
+ * @param fields - The array of form field definitions to render inside the preview
+ * @param settings - Form-level settings (used for things like the submit button text)
+ * @param open - Whether the preview modal is visible
+ * @param onClose - Callback invoked when the preview modal is closed
+ * @returns The modal element containing the form preview, or `null` when `open` is false
+ */
 export function FormPreview({ title, fields, settings, open, onClose }: Props) {
   if (!open) return null;
 

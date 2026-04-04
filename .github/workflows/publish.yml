@@ -58,3 +58,6 @@ jobs:
           tag_name: v${{ steps.pkg.outputs.version }}
           name: v${{ steps.pkg.outputs.version }}
           generate_release_notes: true
+
+  ci:
+    uses: ./.github/workflows/ci.yml
