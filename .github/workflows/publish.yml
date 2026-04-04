@@ -10,7 +10,6 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   publish:
-    needs: ci
     runs-on: ubuntu-latest
 
     steps:
@@ -26,8 +25,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check (server)
+        run: npm run test:ts:back
+
+      - name: Type check (admin)
+        run: npm run test:ts:front
+
       - name: Build
         run: npm run build
+
+      - name: Verify plugin
+        run: npm run verify
+
+      - name: Check version not already published
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view strapi-plugin-form-builder-cms@$VERSION version 2>/dev/null; then
+            echo "Version $VERSION is already published on npm."
+            exit 1
+          fi
+          echo "Version $VERSION is ready to publish."
 
       - name: Get package version
         id: pkg
