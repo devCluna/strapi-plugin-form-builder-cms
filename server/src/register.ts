@@ -1,7 +1,5 @@
 import type { Core } from "@strapi/strapi";
 
-const register = ({ strapi }: { strapi: Core.Strapi }) => {
-  // register phase
-};
+const register = ({ strapi }: { strapi: Core.Strapi }) => {};
 
 export default register;
