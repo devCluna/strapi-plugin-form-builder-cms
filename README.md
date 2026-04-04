@@ -202,7 +202,7 @@ Each rule accepts an optional **custom error message**. The same rule type canno
 Clone the repo and link the plugin to a local Strapi project:
 
 ```bash
-git clone https://github.com/dev-cluna/strapi-plugin-form-builder-cms.git
+git clone https://github.com/devCluna/strapi-plugin-form-builder-cms.git
 cd strapi-plugin-form-builder-cms
 npm install
 
