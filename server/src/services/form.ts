@@ -17,11 +17,17 @@ export default ({ strapi }: { strapi: any }) => ({
   },
 
   async findOne(id: number) {
-    return strapi.db.query(FORM_UID).findOne({ where: { id } });
+    return strapi.db.query(FORM_UID).findOne({
+      where: { id },
+      orderBy: { updatedAt: 'desc' },
+    });
   },
 
   async findBySlug(slug: string) {
-    return strapi.db.query(FORM_UID).findOne({ where: { slug } });
+    return strapi.db.query(FORM_UID).findOne({
+      where: { slug },
+      orderBy: { updatedAt: 'desc' },
+    });
   },
 
   async create(data: any) {
@@ -49,6 +55,21 @@ export default ({ strapi }: { strapi: any }) => ({
         slug: generateSlug(`${rest.title} copy`),
       },
     });
+  },
+
+  async getPublicSchemaById(id: number) {
+    const form = await this.findOne(id);
+    if (!form) return null;
+    return {
+      data: {
+        id: form.id,
+        title: form.title,
+        slug: form.slug,
+        description: form.description,
+        fields: form.fields || [],
+        settings: form.settings || {},
+      },
+    };
   },
 
   async getPublicSchema(slug: string) {
