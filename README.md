@@ -234,23 +234,6 @@ Pull requests are welcome. For major changes please open an issue first to discu
 
 ---
 
-## Comparison
-
-| Feature | strapi-plugin-form-builder-cms | strapi-plugin-ezforms | Custom solution |
-|---|:---:|:---:|:---:|
-| Drag-and-drop builder | ✅ | ❌ | ❌ |
-| 15+ field types | ✅ | ❌ | manual |
-| Per-field validation rules | ✅ | ❌ | manual |
-| Draft / Publish flow | ✅ | ❌ | manual |
-| Self-hosted embed script | ✅ | ❌ | manual |
-| Hosted public page | ✅ | ❌ | manual |
-| Submission inbox in admin | ✅ | ✅ | manual |
-| Honeypot spam protection | ✅ | ❌ | manual |
-| Strapi 5 compatible | ✅ | ✅ | depends |
-| Zero backend code required | ✅ | ✅ | ❌ |
-
----
-
 ## Roadmap
 
 - [ ] Email notifications on new submission
