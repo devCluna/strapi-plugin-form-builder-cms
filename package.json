@@ -63,7 +63,7 @@
     "@strapi/typescript-utils": "^5.40.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^11.0.0",
     "prettier": "^3.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
