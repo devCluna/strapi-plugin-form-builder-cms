@@ -1,14 +1,15 @@
 name: Publish to npm
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - production
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   publish:
-    if: github.event.pull_request.merged == true
     needs: ci
     runs-on: ubuntu-latest
 
@@ -56,8 +57,6 @@ jobs:
         with:
           tag_name: v${{ steps.pkg.outputs.version }}
           name: v${{ steps.pkg.outputs.version }}
-          body: |
-            Published from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
           generate_release_notes: true
 
   ci:
