@@ -45,6 +45,17 @@ function LabeledInput({
   );
 }
 
+/**
+ * Render the settings panel UI for editing a single form field.
+ *
+ * Displays controls for label, name, placeholder, help text, required/width toggles,
+ * type-specific inputs (heading, paragraph), option management (add/update/remove),
+ * validation rule management (add/update/remove) with value/message editing, and CSS class.
+ *
+ * @param field - The current FormField to edit.
+ * @param onChange - Callback invoked with the updated FormField whenever a change is made.
+ * @returns A React element containing the field settings panel UI.
+ */
 export function FieldSettingsPanel({ field, onChange }: Props) {
   const update = (patch: Partial<FormField>) => onChange({ ...field, ...patch });
 

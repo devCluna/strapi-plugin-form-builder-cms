@@ -20,6 +20,17 @@ import { CSS } from '@dnd-kit/utilities';
 import { Trash, Drag } from '@strapi/icons';
 import { FormField } from '../types';
 
+/**
+ * Renders a draggable, selectable row that represents a FormField with a delete action.
+ *
+ * The row highlights when `selected`. Clicking the row calls `onSelect`; interacting with the drag handle does not toggle selection; clicking the delete button calls `onDelete`.
+ *
+ * @param field - The form field to render (label and type are displayed).
+ * @param selected - Whether this row is currently selected; controls visual highlight.
+ * @param onSelect - Callback invoked when the row (outside the drag handle and delete button) is clicked.
+ * @param onDelete - Callback invoked when the delete button is clicked.
+ * @returns The rendered sortable field row element.
+ */
 function SortableFieldRow({
   field,
   selected,
