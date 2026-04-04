@@ -10,11 +10,13 @@ import {
   Loader,
   Field,
 } from '@strapi/design-system';
-import { ArrowLeft, Check } from '@strapi/icons';
+import { ArrowLeft, Check, Pencil, Eye, Duplicate } from '@strapi/icons';
 import { v4 as uuid } from 'uuid';
 import { FieldPalette } from '../components/FieldPalette';
 import { DropZone } from '../components/DropZone';
 import { FieldSettingsPanel } from '../components/FieldSettingsPanel';
+import { FormPreview } from '../components/FormPreview';
+import { EmbedModal } from '../components/EmbedModal';
 import { useFormsApi } from '../api';
 import { Form, FormField, FormSettings, FieldType } from '../types';
 import { PLUGIN_ID } from '../pluginId';
@@ -28,6 +30,7 @@ const DEFAULT_SETTINGS: FormSettings = {
   notificationEmails: [],
   redirectUrl: '',
   customCss: '',
+  publicPage: false,
 };
 
 function createField(type: FieldType, order: number): FormField {
@@ -56,12 +59,17 @@ export function FormBuilderPage() {
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [title, setTitle] = useState('New form');
   const [description, setDescription] = useState('');
   const [fields, setFields] = useState<FormField[]>([]);
   const [settings, setSettings] = useState<FormSettings>(DEFAULT_SETTINGS);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
+  const [slug, setSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isNew && id) {
@@ -70,6 +78,8 @@ export function FormBuilderPage() {
         setDescription(form.description || '');
         setFields(form.fields || []);
         setSettings({ ...DEFAULT_SETTINGS, ...(form.settings || {}) });
+        setPublishedAt(form.publishedAt ?? null);
+        setSlug(form.slug ?? null);
         setLoading(false);
       });
     }
@@ -94,18 +104,39 @@ export function FormBuilderPage() {
     setFields(reordered.map((f, i) => ({ ...f, order: i })));
   }, []);
 
-  const save = async () => {
+  const saveDraft = async () => {
     setSaving(true);
     try {
-      const payload = { title, description, fields, settings, conditionalLogic: [] };
+      const payload = { title, description, fields, settings, conditionalLogic: [], publishedAt: null };
       if (isNew) {
         const created = await api.createForm(payload);
+        setPublishedAt(null);
+        setSlug(created.slug ?? null);
         navigate(`/plugins/${PLUGIN_ID}/builder/${created.id}`, { replace: true });
       } else {
-        await api.updateForm(Number(id), payload);
+        const updated = await api.updateForm(Number(id), payload);
+        setPublishedAt(updated.publishedAt ?? null);
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const publish = async () => {
+    setPublishing(true);
+    try {
+      const now = new Date().toISOString();
+      const payload = { title, description, fields, settings, conditionalLogic: [], publishedAt: now };
+      if (isNew) {
+        const created = await api.createForm(payload);
+        setPublishedAt(created.publishedAt ?? now);
+        navigate(`/plugins/${PLUGIN_ID}/builder/${created.id}`, { replace: true });
+      } else {
+        const updated = await api.updateForm(Number(id), payload);
+        setPublishedAt(updated.publishedAt ?? now);
+      }
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -122,7 +153,7 @@ export function FormBuilderPage() {
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Header */}
-      <Box padding={4} background="neutral0" style={{ borderBottom: '1px solid #ddd' }}>
+      <Box padding={4} background="neutral0" style={{ borderBottom: '1px solid var(--strapi-neutral-200)' }}>
         <Flex justifyContent="space-between" alignItems="center">
           <Flex gap={3} alignItems="center">
             <Button
@@ -139,15 +170,46 @@ export function FormBuilderPage() {
               style={{ minWidth: 300, fontWeight: 'bold', fontSize: 18 }}
             />
           </Flex>
-          <Flex gap={2}>
+          <Flex gap={2} alignItems="center">
+            <Typography
+              variant="pi"
+              textColor={publishedAt ? 'success600' : 'warning600'}
+              style={{ fontWeight: 600 }}
+            >
+              {publishedAt ? 'Published' : 'Draft'}
+            </Typography>
+            {!isNew && (
+              <Button
+                variant="ghost"
+                startIcon={<Duplicate />}
+                onClick={() => setShowEmbed(true)}
+              >
+                Embed
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              startIcon={<Eye />}
+              onClick={() => setShowPreview(true)}
+            >
+              Preview
+            </Button>
             <Button
               variant="secondary"
               onClick={() => setShowSettings((v) => !v)}
             >
               {showSettings ? 'Hide settings' : 'Settings'}
             </Button>
-            <Button startIcon={<Check />} onClick={save} loading={saving}>
-              Save
+            <Button
+              variant="secondary"
+              startIcon={<Pencil />}
+              onClick={saveDraft}
+              loading={saving}
+            >
+              Save draft
+            </Button>
+            <Button startIcon={<Check />} onClick={publish} loading={publishing}>
+              Publish
             </Button>
           </Flex>
         </Flex>
@@ -155,7 +217,7 @@ export function FormBuilderPage() {
 
       {/* Settings panel */}
       {showSettings && (
-        <Box padding={4} background="primary100" style={{ borderBottom: '1px solid #c0bfff' }}>
+        <Box padding={4} background="primary100" style={{ borderBottom: '1px solid var(--strapi-primary-200)' }}>
           <Flex gap={4} alignItems="flex-start" style={{ flexWrap: 'wrap' }}>
             <Field.Root style={{ minWidth: 300 }}>
               <Field.Label>Description</Field.Label>
@@ -182,7 +244,7 @@ export function FormBuilderPage() {
                 }
               />
             </Field.Root>
-            <Flex direction="column" gap={2}>
+            <Flex gap={4} alignItems="center">
               <Flex alignItems="center" gap={2}>
                 <Toggle
                   checked={settings.enableHoneypot}
@@ -192,27 +254,67 @@ export function FormBuilderPage() {
                   onLabel="Yes"
                   offLabel="No"
                 />
-                <Typography>Honeypot anti-spam</Typography>
+                <Typography variant="pi">Honeypot anti-spam</Typography>
+              </Flex>
+              <Flex alignItems="center" gap={2}>
+                <Toggle
+                  checked={settings.publicPage}
+                  onChange={() =>
+                    setSettings((s) => ({ ...s, publicPage: !s.publicPage }))
+                  }
+                  onLabel="Yes"
+                  offLabel="No"
+                />
+                <Typography variant="pi">Public page</Typography>
               </Flex>
             </Flex>
+          </Flex>
+
+        </Box>
+      )}
+
+      {/* Public page bar */}
+      {settings.publicPage && slug && (
+        <Box
+          paddingTop={2}
+          paddingBottom={2}
+          paddingLeft={4}
+          paddingRight={4}
+          background="success100"
+          style={{ borderBottom: '1px solid var(--strapi-success-200)', flexShrink: 0 }}
+        >
+          <Flex alignItems="center" gap={2}>
+            <Typography variant="pi" textColor="success700" fontWeight="semiBold">
+              Public URL:
+            </Typography>
+            <Typography variant="pi" textColor="success600" style={{ fontFamily: 'monospace' }}>
+              {window.location.origin}/api/strapi-plugin-form-builder-cms/page/{slug}
+            </Typography>
+            <Button
+              variant="ghost"
+              size="S"
+              onClick={() => window.open(`${window.location.origin}/api/strapi-plugin-form-builder-cms/page/${slug}`, '_blank')}
+            >
+              Open
+            </Button>
           </Flex>
         </Box>
       )}
 
       {/* Main area */}
-      <Flex style={{ flex: 1, overflow: 'hidden' }}>
+      <Flex style={{ flex: 1, minHeight: 0 }}>
         <FieldPalette onAdd={addField} />
 
         <Box
           padding={4}
-          style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}
+          style={{ flex: 1, overflowY: 'auto', minWidth: 0, alignSelf: 'stretch' }}
         >
           {fields.length === 0 ? (
             <Box
               padding={10}
               background="neutral100"
-              borderRadius="4px"
-              style={{ border: '2px dashed #ccc', textAlign: 'center' }}
+              hasRadius
+              style={{ border: '2px dashed var(--strapi-neutral-300)', textAlign: 'center' }}
             >
               <Typography textColor="neutral500">
                 Click on a field in the left panel to add it to the form
@@ -236,6 +338,22 @@ export function FormBuilderPage() {
           />
         )}
       </Flex>
+
+      <FormPreview
+        title={title}
+        fields={fields}
+        settings={settings}
+        open={showPreview}
+        onClose={() => setShowPreview(false)}
+      />
+
+      {!isNew && (
+        <EmbedModal
+          formId={id!}
+          open={showEmbed}
+          onClose={() => setShowEmbed(false)}
+        />
+      )}
     </Box>
   );
 }

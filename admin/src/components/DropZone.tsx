@@ -45,13 +45,14 @@ function SortableFieldRow({
       ref={setNodeRef}
       padding={3}
       background={selected ? 'primary100' : 'neutral0'}
-      borderRadius="4px"
       marginBottom={2}
       onClick={onSelect}
       hasRadius
       style={{
         ...style,
-        border: selected ? '2px solid #4945ff' : '1px solid #ddd',
+        border: `2px solid ${selected ? 'var(--strapi-primary-600)' : 'transparent'}`,
+        outline: selected ? 'none' : '1px solid var(--strapi-neutral-200)',
+        outlineOffset: '-1px',
         cursor: 'pointer',
       }}
     >
@@ -60,7 +61,7 @@ function SortableFieldRow({
           <Box
             {...attributes}
             {...listeners}
-            style={{ cursor: 'grab', color: '#aaa', padding: '0 4px' }}
+            style={{ cursor: 'grab', color: 'var(--strapi-neutral-400)', padding: '0 4px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <Drag />
@@ -117,8 +118,8 @@ export function DropZone({ fields, selectedId, onSelect, onDelete, onReorder }: 
       <Box
         padding={10}
         background="neutral100"
-        borderRadius="4px"
-        style={{ border: '2px dashed #ccc', textAlign: 'center', flex: 1 }}
+        hasRadius
+        style={{ border: '2px dashed var(--strapi-neutral-300)', textAlign: 'center', flex: 1 }}
       >
         <Typography textColor="neutral500">
           Click on a field in the left panel to add it to the form

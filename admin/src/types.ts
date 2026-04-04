@@ -65,6 +65,7 @@ export interface FormSettings {
   notificationEmails: string[];
   redirectUrl: string;
   customCss: string;
+  publicPage: boolean;
 }
 
 export interface Form {

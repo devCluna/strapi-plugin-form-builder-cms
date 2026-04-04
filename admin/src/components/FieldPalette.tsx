@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Flex, Typography } from '@strapi/design-system';
 import { FieldType } from '../types';
 
@@ -40,11 +40,13 @@ interface Props {
 }
 
 export function FieldPalette({ onAdd }: Props) {
+  const [hovered, setHovered] = useState<FieldType | null>(null);
+
   return (
     <Box
       padding={4}
       background="neutral100"
-      style={{ width: 200, minWidth: 200, overflowY: 'auto', borderRight: '1px solid #ddd' }}
+      style={{ width: 200, minWidth: 200, overflowY: 'auto', alignSelf: 'stretch', borderRight: '1px solid var(--strapi-neutral-200)' }}
     >
       <Typography variant="sigma" textColor="neutral600" marginBottom={3}>
         FIELDS
@@ -54,25 +56,21 @@ export function FieldPalette({ onAdd }: Props) {
           <Typography variant="pi" fontWeight="bold" textColor="neutral500" marginBottom={2}>
             {group}
           </Typography>
-          <Flex direction="column" gap={1}>
+          <Flex direction="column" gap={1} alignItems="stretch">
             {PALETTE_ITEMS.filter((i) => i.group === group).map((item) => (
               <Box
                 key={item.type}
                 padding={2}
-                background="neutral0"
+                background={hovered === item.type ? 'primary100' : 'neutral0'}
+                hasRadius
                 style={{
                   cursor: 'pointer',
-                  borderRadius: 4,
-                  border: '1px solid #e5e5e5',
+                  border: '1px solid var(--strapi-neutral-200)',
                   userSelect: 'none',
                 }}
                 onClick={() => onAdd(item.type)}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = '#f0f0ff';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = 'white';
-                }}
+                onMouseEnter={() => setHovered(item.type)}
+                onMouseLeave={() => setHovered(null)}
               >
                 <Flex gap={2} alignItems="center">
                   <span style={{ fontSize: 14 }}>{item.icon}</span>
