@@ -93,7 +93,7 @@ export function SubmissionsPage() {
           <SingleSelect
             aria-label="Filter by status"
             value={statusFilter}
-            onChange={(val: string) => setStatusFilter(val)}
+            onChange={(val) => setStatusFilter(String(val))}
             placeholder="All statuses"
             size="S"
           >
@@ -102,16 +102,6 @@ export function SubmissionsPage() {
             <SingleSelectOption value="read">Read</SingleSelectOption>
             <SingleSelectOption value="archived">Archived</SingleSelectOption>
           </SingleSelect>
-          <Button
-            variant="secondary"
-            size="S"
-            onClick={() => window.open(
-              `/strapi-plugin-form-builder-cms/submissions/${formId}/export?format=csv`,
-              '_blank'
-            )}
-          >
-            Export CSV
-          </Button>
         </Flex>
       </Flex>
 
@@ -177,31 +167,63 @@ export function SubmissionsPage() {
           <Dialog.Content>
             <Dialog.Header>Submission #{selected.id}</Dialog.Header>
             <Dialog.Body>
-              <Flex direction="column" gap={2}>
-                <Flex gap={2}>
-                  <Typography fontWeight="bold">Status:</Typography>
-                  <Badge>{selected.status}</Badge>
-                </Flex>
-                <Flex gap={2}>
-                  <Typography fontWeight="bold">Date:</Typography>
-                  <Typography>{new Date(selected.createdAt).toLocaleString()}</Typography>
-                </Flex>
-                <Flex gap={2}>
-                  <Typography fontWeight="bold">IP:</Typography>
-                  <Typography>{selected.ipAddress || '—'}</Typography>
-                </Flex>
-                <Box marginTop={3}>
-                  <Typography variant="beta" marginBottom={2}>Data</Typography>
-                  {dataFields.map((f) => (
-                    <Flex key={f.id} gap={2} marginBottom={1}>
-                      <Typography fontWeight="semiBold" style={{ minWidth: 120 }}>
-                        {f.label}:
-                      </Typography>
-                      <Typography>{String(selected.data?.[f.name] ?? '—')}</Typography>
-                    </Flex>
-                  ))}
-                </Box>
-              </Flex>
+              <div style={{ textAlign: 'left' }}>
+                {/* Meta */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '80px 1fr',
+                  rowGap: 10,
+                  columnGap: 16,
+                  background: 'var(--strapi-neutral-100)',
+                  borderRadius: 6,
+                  padding: '12px 16px',
+                  marginBottom: 16,
+                }}>
+                  <Typography variant="pi" fontWeight="semiBold" textColor="neutral500">Status</Typography>
+                  <Badge variant={statusColor[selected.status]}>{selected.status.toUpperCase()}</Badge>
+
+                  <Typography variant="pi" fontWeight="semiBold" textColor="neutral500">Date</Typography>
+                  <Typography variant="pi">{new Date(selected.createdAt).toLocaleString()}</Typography>
+
+                  <Typography variant="pi" fontWeight="semiBold" textColor="neutral500">IP</Typography>
+                  <Typography variant="pi">{selected.ipAddress || '—'}</Typography>
+                </div>
+
+                {/* Submitted data */}
+                <Typography variant="sigma" textColor="neutral400" style={{ display: 'block', marginBottom: 8 }}>
+                  SUBMITTED DATA
+                </Typography>
+                <div style={{
+                  border: '1px solid var(--strapi-neutral-200)',
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                }}>
+                  {dataFields.length === 0 ? (
+                    <Typography variant="pi" textColor="neutral500" style={{ padding: '12px 16px', display: 'block' }}>
+                      No data fields.
+                    </Typography>
+                  ) : dataFields.map((f, i) => {
+                    const val = String(selected.data?.[f.name] ?? '');
+                    return (
+                      <div key={f.id} style={{
+                        display: 'grid',
+                        gridTemplateColumns: '140px 1fr',
+                        columnGap: 16,
+                        padding: '10px 16px',
+                        background: i % 2 === 0 ? '#fff' : 'var(--strapi-neutral-100)',
+                        alignItems: 'start',
+                      }}>
+                        <Typography variant="pi" fontWeight="semiBold" textColor="neutral600" style={{ whiteSpace: 'nowrap' }}>
+                          {f.label}
+                        </Typography>
+                        <Typography variant="pi" textColor={val ? 'neutral800' : 'neutral400'}>
+                          {val || '—'}
+                        </Typography>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </Dialog.Body>
             <Dialog.Footer>
               <Dialog.Cancel>
