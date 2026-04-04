@@ -1,6 +1,25 @@
 {
-  "version": "0.0.0",
-  "keywords": [],
+  "name": "strapi-plugin-form-builder-cms",
+  "version": "1.0.0-alpha.1",
+  "description": "Visual drag-and-drop form builder plugin for Strapi 5. Create, publish and embed forms on any website.",
+  "keywords": [
+    "strapi",
+    "strapi-plugin",
+    "form-builder",
+    "forms",
+    "drag-and-drop",
+    "cms"
+  ],
+  "license": "MIT",
+  "author": "dev.cluna <dev.cluna@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devCluna/strapi-plugin-form-builder-cms.git"
+  },
+  "bugs": {
+    "url": "https://github.com/devCluna/strapi-plugin-form-builder-cms/issues"
+  },
+  "homepage": "https://github.com/devCluna/strapi-plugin-form-builder-cms#readme",
   "type": "commonjs",
   "exports": {
     "./package.json": "./package.json",
@@ -67,11 +86,7 @@
   "strapi": {
     "kind": "plugin",
     "name": "strapi-plugin-form-builder-cms",
-    "displayName": "",
-    "description": ""
-  },
-  "name": "strapi-plugin-form-builder-cms",
-  "description": "",
-  "license": "MIT",
-  "author": "dev.cluna <dev.cluna@gmail.com>"
+    "displayName": "Form Builder CMS",
+    "description": "Visual drag-and-drop form builder plugin for Strapi 5"
+  }
 }
