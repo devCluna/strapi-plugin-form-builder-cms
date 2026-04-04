@@ -62,7 +62,7 @@ function SortableFieldRow({
             {...attributes}
             {...listeners}
             style={{ cursor: 'grab', color: 'var(--strapi-neutral-400)', padding: '0 4px' }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
             <Drag />
           </Box>
