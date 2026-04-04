@@ -260,7 +260,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                     <Field.Root style={{ flex: 1 }}>
                       <SingleSelect
                         value={rule.type}
-                        onChange={(val) => updateValidation(i, { type: String(val), value: undefined, message: '' })}
+                        onChange={(val: string | number) => updateValidation(i, { type: String(val), value: undefined, message: '' })}
                         size="S"
                       >
                         {available.map((opt) => (

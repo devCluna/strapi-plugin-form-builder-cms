@@ -93,7 +93,7 @@ export function SubmissionsPage() {
           <SingleSelect
             aria-label="Filter by status"
             value={statusFilter}
-            onChange={(val) => setStatusFilter(String(val))}
+            onChange={(val: string | number) => setStatusFilter(String(val))}
             placeholder="All statuses"
             size="S"
           >

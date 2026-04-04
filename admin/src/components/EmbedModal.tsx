@@ -24,7 +24,7 @@ export function EmbedModal({ formId, open, onClose }: Props) {
   };
 
   return (
-    <Modal.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Modal.Root open={open} onOpenChange={(v: boolean) => !v && onClose()}>
       <Modal.Content style={{ maxWidth: 600, width: '100%' }}>
         <Modal.Header>
           <Typography variant="beta">Embed this form</Typography>
