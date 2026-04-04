@@ -7,7 +7,6 @@ on:
       - development
       - production
   pull_request:
-  workflow_call:
 
 jobs:
   ci:
