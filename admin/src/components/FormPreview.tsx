@@ -287,7 +287,7 @@ export function FormPreview({ title, fields, settings, open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <Modal.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Modal.Root open={open} onOpenChange={(v: boolean) => !v && onClose()}>
       <Modal.Content style={{ maxWidth: 760, width: '100%' }}>
         <Modal.Header>
           <Typography variant="beta">Preview — {title}</Typography>

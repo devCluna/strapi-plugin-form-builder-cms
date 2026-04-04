@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 10
+    target-branch: "development"
+    groups:
+      strapi:
+        patterns:
+          - "@strapi/*"
+      dnd-kit:
+        patterns:
+          - "@dnd-kit/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+    ignore:
+      - dependency-name: "@strapi/strapi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@strapi/design-system"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 5
+    target-branch: "development"
