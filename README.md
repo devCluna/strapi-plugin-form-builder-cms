@@ -1,5 +1,10 @@
 # strapi-plugin-form-builder-cms
 
+[![npm version](https://img.shields.io/npm/v/strapi-plugin-form-builder-cms.svg)](https://www.npmjs.com/package/strapi-plugin-form-builder-cms)
+[![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-form-builder-cms.svg)](https://www.npmjs.com/package/strapi-plugin-form-builder-cms)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Strapi 5](https://img.shields.io/badge/Strapi-5.x-2F2D74?logo=strapi)](https://strapi.io)
+
 A visual drag-and-drop form builder plugin for [Strapi 5](https://strapi.io). Create, publish and embed forms on any website without writing a single line of backend code.
 
 ---
@@ -202,7 +207,7 @@ Each rule accepts an optional **custom error message**. The same rule type canno
 Clone the repo and link the plugin to a local Strapi project:
 
 ```bash
-git clone https://github.com/dev-cluna/strapi-plugin-form-builder-cms.git
+git clone https://github.com/devCluna/strapi-plugin-form-builder-cms.git
 cd strapi-plugin-form-builder-cms
 npm install
 
@@ -226,6 +231,18 @@ Pull requests are welcome. For major changes please open an issue first to discu
 2. Create a feature branch: `git checkout -b feat/my-feature`.
 3. Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/).
 4. Open a pull request.
+
+---
+
+## Roadmap
+
+- [ ] Email notifications on new submission
+- [ ] File upload field type
+- [ ] Multi-step / wizard forms
+- [ ] Export submissions as CSV
+- [ ] Webhook on submit
+
+Have a feature request? [Open an issue](https://github.com/devCluna/strapi-plugin-form-builder-cms/issues).
 
 ---
 
