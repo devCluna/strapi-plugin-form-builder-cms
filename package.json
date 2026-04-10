@@ -1,6 +1,6 @@
 {
   "name": "strapi-plugin-form-builder-cms",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Visual drag-and-drop form builder plugin for Strapi 5. Create, publish and embed forms on any website.",
   "keywords": [
     "strapi",
