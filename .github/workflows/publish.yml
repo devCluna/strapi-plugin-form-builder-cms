@@ -68,6 +68,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Create git tag
+        run: |
+          git tag v${{ steps.pkg.outputs.version }}
+          git push origin v${{ steps.pkg.outputs.version }}
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

@@ -5,10 +5,22 @@
   "keywords": [
     "strapi",
     "strapi-plugin",
+    "strapi5",
+    "strapi-v5",
     "form-builder",
+    "form-builder-plugin",
     "forms",
     "drag-and-drop",
-    "cms"
+    "drag-drop-form",
+    "cms",
+    "headless-cms",
+    "form-embed",
+    "contact-form",
+    "lead-form",
+    "no-code",
+    "visual-builder",
+    "submissions",
+    "embed"
   ],
   "license": "MIT",
   "author": "dev.cluna <dev.cluna@gmail.com>",
