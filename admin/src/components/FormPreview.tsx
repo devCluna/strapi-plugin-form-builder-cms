@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { Modal, Box, Typography, Button } from '@strapi/design-system';
+import React, { useEffect, useState } from 'react';
 import { FormField, FormSettings } from '../types';
 
 /* ── shared tokens ─────────────────────────────────────────────────── */
@@ -16,7 +15,7 @@ const TOKEN = {
 
 const inputBase: React.CSSProperties = {
   width: '100%',
-  height: 40,
+  height: 44,
   padding: '0 12px',
   border: TOKEN.border,
   borderRadius: TOKEN.radius,
@@ -31,18 +30,18 @@ const inputBase: React.CSSProperties = {
 const fieldWrap: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 4,
+  gap: 7,
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 14,
   fontWeight: 600,
   color: TOKEN.text,
-  lineHeight: '16px',
+  lineHeight: '18px',
 };
 
 const helpStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   color: TOKEN.sub,
   margin: 0,
 };
@@ -277,6 +276,7 @@ function PreviewField({ field }: { field: FormField }) {
 
 interface Props {
   title: string;
+  description?: string;
   fields: FormField[];
   settings: FormSettings;
   open: boolean;
@@ -284,65 +284,56 @@ interface Props {
 }
 
 /**
- * Render a modal preview of a form using the provided title, fields, and settings.
- *
- * @param title - The preview title displayed in the modal header
- * @param fields - The array of form field definitions to render inside the preview
- * @param settings - Form-level settings (used for things like the submit button text)
- * @param open - Whether the preview modal is visible
- * @param onClose - Callback invoked when the preview modal is closed
- * @returns The modal element containing the form preview, or `null` when `open` is false
+ * Render a centered modal preview of the public form (no device toggle, no footer bar).
+ * Closes on scrim click, the header ✕, or Escape.
  */
-export function FormPreview({ title, fields, settings, open, onClose }: Props) {
+export function FormPreview({ title, description, fields, settings, open, onClose }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <Modal.Root open={open} onOpenChange={(v: boolean) => !v && onClose()}>
-      <Modal.Content style={{ maxWidth: 760, width: '100%' }}>
-        <Modal.Header>
-          <Typography variant="beta">Preview — {title}</Typography>
-        </Modal.Header>
-        <Modal.Body>
-          <Box padding={6} background="neutral0" hasRadius style={{ border: TOKEN.border }}>
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(33,33,52,.4)', zIndex: 50 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 660, maxWidth: '96vw', maxHeight: '90vh', background: '#fff', borderRadius: 8, boxShadow: '0 2px 15px rgba(33,33,52,.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 51 }}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid #eaeaef', flex: 'none' }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: TOKEN.text, margin: 0, fontFamily: 'inherit' }}>Preview — {title}</h3>
+          <button type="button" onClick={onClose} title="Close" style={{ width: 30, height: 30, borderRadius: 5, color: TOKEN.sub, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
+        </div>
+
+        {/* body */}
+        <div style={{ background: '#f5f5f9', overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: '100%', background: '#fff', border: '1px solid #eaeaef', borderRadius: 12, padding: '32px 32px 28px' }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: TOKEN.text, margin: '0 0 8px' }}>{title}</h1>
+            {description && <p style={{ fontSize: 14, color: TOKEN.sub, margin: '0 0 22px', lineHeight: 1.55 }}>{description}</p>}
             <form onSubmit={(e) => e.preventDefault()}>
               {fields.length === 0 ? (
-                <p style={{ textAlign: 'center', color: TOKEN.sub, padding: '32px 0', margin: 0 }}>
-                  No fields added yet.
-                </p>
+                <p style={{ textAlign: 'center', color: TOKEN.sub, padding: '32px 0', margin: 0 }}>No fields added yet.</p>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                   {fields.map((field) => (
                     <PreviewField key={field.id} field={field} />
                   ))}
                 </div>
               )}
               {fields.length > 0 && (
-                <div style={{ marginTop: 24 }}>
-                  <button
-                    type="submit"
-                    style={{
-                      background: TOKEN.accent,
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: TOKEN.radius,
-                      padding: '10px 24px',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {settings.submitButtonText || 'Submit'}
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  style={{ marginTop: 26, height: 48, width: '100%', borderRadius: TOKEN.radius, background: TOKEN.accent, color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', border: 'none', cursor: 'pointer' }}
+                >
+                  {settings.submitButtonText || 'Submit'}
+                </button>
               )}
             </form>
-          </Box>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="tertiary" onClick={onClose}>Close</Button>
-        </Modal.Footer>
-      </Modal.Content>
-    </Modal.Root>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

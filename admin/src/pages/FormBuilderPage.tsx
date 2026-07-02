@@ -1,15 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Flex,
-  Typography,
-  TextInput,
-  Toggle,
-  Loader,
-  Field,
-} from '@strapi/design-system';
+import { Box, Flex, Loader } from '@strapi/design-system';
 import { ArrowLeft, Pencil } from '@strapi/icons';
 import { v4 as uuid } from 'uuid';
 import { FieldPalette } from '../components/FieldPalette';
@@ -51,6 +42,125 @@ function HeaderBtn({ variant, onClick, disabled, children }: {
     >
       {children}
     </button>
+  );
+}
+
+function DrawerToggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} style={{ width: 40, height: 22, borderRadius: 20, background: on ? C.suc500 : C.n200, position: 'relative', flex: 'none', cursor: 'pointer', border: 'none', padding: 0 }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)', transition: 'left .15s' }} />
+    </button>
+  );
+}
+
+const dInp: React.CSSProperties = {
+  height: 36, border: `1px solid ${C.n200}`, borderRadius: 4, background: C.n0,
+  padding: '0 11px', font: `400 13px ${FF}`, color: C.n800, width: '100%', outline: 'none',
+};
+const dLbl: React.CSSProperties = { font: `600 12px ${FF}`, color: C.n700, display: 'block', marginBottom: 6 };
+const dHint: React.CSSProperties = { font: `400 11px ${FF}`, color: C.n500, marginTop: 2 };
+const dGroupT: React.CSSProperties = { font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500, marginBottom: 16 };
+
+function ToggleRow({ label, hint, on, onClick }: { label: string; hint: string; on: boolean; onClick: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 16 }}>
+      <div>
+        <div style={{ font: `600 13px ${FF}`, color: C.n800 }}>{label}</div>
+        <div style={dHint}>{hint}</div>
+      </div>
+      <DrawerToggle on={on} onClick={onClick} />
+    </div>
+  );
+}
+
+function SettingsDrawer({ description, setDescription, settings, setSettings, slug, publishedAt, onCancel, onSave }: {
+  description: string;
+  setDescription: (v: string) => void;
+  settings: FormSettings;
+  setSettings: React.Dispatch<React.SetStateAction<FormSettings>>;
+  slug: string | null;
+  publishedAt: string | null;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const patch = (p: Partial<FormSettings>) => setSettings((s) => ({ ...s, ...p }));
+  const url = slug ? `${window.location.origin}/api/${PLUGIN_ID}/page/${slug}` : '';
+  const live = !!publishedAt;
+
+  return (
+    <>
+      <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(33,33,52,.32)', zIndex: 40 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 452, maxWidth: '100vw', background: C.n0, boxShadow: '-10px 0 50px rgba(33,33,52,.22)', display: 'flex', flexDirection: 'column', zIndex: 41 }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.n150}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ font: `800 20px ${FF}`, color: C.n900, margin: 0 }}>Form settings</h3>
+          </div>
+          <button type="button" onClick={onCancel} title="Close" style={{ width: 30, height: 30, borderRadius: 5, color: C.n500, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px' }}>
+          <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
+            <div style={dGroupT}>General</div>
+            <label style={dLbl}>Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...dInp, height: 'auto', minHeight: 62, padding: '10px 11px', lineHeight: 1.5, resize: 'vertical' }} />
+            <div style={{ marginTop: 16 }}>
+              <label style={dLbl}>Submit button text</label>
+              <input value={settings.submitButtonText} onChange={(e) => patch({ submitButtonText: e.target.value })} style={dInp} />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <label style={dLbl}>Success message</label>
+              <input value={settings.successMessage} onChange={(e) => patch({ successMessage: e.target.value })} style={dInp} />
+            </div>
+          </div>
+
+          <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
+            <div style={dGroupT}>Public access</div>
+            <ToggleRow label="Public page" hint="Generate a shareable live link." on={settings.publicPage} onClick={() => patch({ publicPage: !settings.publicPage })} />
+            {settings.publicPage && (
+              <div style={{ marginTop: 14 }}>
+                {slug ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: live ? '#eafbe7' : C.wrn100, border: `1px solid ${live ? '#c6f0c2' : '#f2d9a6'}`, borderRadius: 4, padding: '8px 10px', font: `500 12px ui-monospace, Menlo, monospace`, color: live ? C.suc700 : C.wrn700 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: live ? C.suc600 : C.wrn600, flex: 'none' }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
+                    </div>
+                    <div style={{ ...dHint, marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{live ? 'Live now.' : '⚠ Inactive until a version is published.'}</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: C.p600, fontWeight: 600, textDecoration: 'none' }}>Open ↗</a>
+                    </div>
+                  </>
+                ) : (
+                  <div style={dHint}>Save the form to generate the public link.</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
+            <div style={dGroupT}>Spam &amp; limits</div>
+            <ToggleRow label="Honeypot protection" hint="Silently discards bot submissions." on={settings.enableHoneypot} onClick={() => patch({ enableHoneypot: !settings.enableHoneypot })} />
+            <ToggleRow label="Rate limiting" hint="Cap submissions per IP each hour." on={settings.enableRateLimit} onClick={() => patch({ enableRateLimit: !settings.enableRateLimit })} />
+            {settings.enableRateLimit && (
+              <div style={{ marginTop: 16 }}>
+                <label style={dLbl}>Max submissions / hour</label>
+                <input value={String(settings.maxSubmissionsPerHour ?? '')} onChange={(e) => patch({ maxSubmissionsPerHour: Number(e.target.value.replace(/[^0-9]/g, '')) || 0 })} style={{ ...dInp, width: 120 }} />
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '20px 0' }}>
+            <div style={dGroupT}>Advanced</div>
+            <label style={dLbl}>Redirect URL after submit</label>
+            <input value={settings.redirectUrl} onChange={(e) => patch({ redirectUrl: e.target.value })} placeholder="https://acme.co/thank-you" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.n150}`, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <HeaderBtn variant="ghost" onClick={onCancel}>Cancel</HeaderBtn>
+          <HeaderBtn variant="pri" onClick={onSave}>Save settings</HeaderBtn>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -97,6 +207,8 @@ export function FormBuilderPage() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(isNew);
+  // snapshot of settings when the drawer opens, so Cancel can revert unsaved edits
+  const settingsSnapshot = useRef<{ description: string; settings: FormSettings }>({ description: '', settings: DEFAULT_SETTINGS });
 
   // dirty tracking: compare live state against the last saved/loaded snapshot
   const savedRef = useRef<string>('');
@@ -107,7 +219,7 @@ export function FormBuilderPage() {
     if (!isNew && id) {
       api.getForm(Number(id)).then((form: Form) => {
         setTitle(form.title);
-        setDescription(form.description || '');
+        setDescription(typeof form.description === 'string' ? form.description : '');
         setFields(form.fields || []);
         setSettings({ ...DEFAULT_SETTINGS, ...(form.settings || {}) });
         setPublishedAt(form.publishedAt ?? null);
@@ -254,7 +366,7 @@ export function FormBuilderPage() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <HeaderBtn variant="ghost" onClick={() => setShowSettings((v) => !v)}>Settings</HeaderBtn>
+          <HeaderBtn variant="ghost" onClick={() => { if (!showSettings) settingsSnapshot.current = { description, settings }; setShowSettings((v) => !v); }}>Settings</HeaderBtn>
           <HeaderBtn variant="ghost" onClick={() => setShowPreview(true)}>Preview</HeaderBtn>
           {!isNew && <HeaderBtn variant="ghost" onClick={() => setShowEmbed(true)}>Embed</HeaderBtn>}
           <HeaderBtn variant="sec" onClick={saveDraft} disabled={saving}>Save draft</HeaderBtn>
@@ -262,90 +374,18 @@ export function FormBuilderPage() {
         </div>
       </div>
 
-      {/* Settings panel */}
+      {/* Settings drawer (right slide-over) */}
       {showSettings && (
-        <Box padding={4} background="primary100" style={{ borderBottom: '1px solid var(--strapi-primary-200)' }}>
-          <Flex gap={4} alignItems="flex-start" style={{ flexWrap: 'wrap' }}>
-            <Field.Root style={{ minWidth: 300 }}>
-              <Field.Label>Description</Field.Label>
-              <TextInput
-                value={description}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
-              />
-            </Field.Root>
-            <Field.Root>
-              <Field.Label>Submit button</Field.Label>
-              <TextInput
-                value={settings.submitButtonText}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setSettings((s) => ({ ...s, submitButtonText: e.target.value }))
-                }
-              />
-            </Field.Root>
-            <Field.Root style={{ minWidth: 300 }}>
-              <Field.Label>Success message</Field.Label>
-              <TextInput
-                value={settings.successMessage}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setSettings((s) => ({ ...s, successMessage: e.target.value }))
-                }
-              />
-            </Field.Root>
-            <Flex gap={4} alignItems="center">
-              <Flex alignItems="center" gap={2}>
-                <Toggle
-                  checked={settings.enableHoneypot}
-                  onChange={() =>
-                    setSettings((s) => ({ ...s, enableHoneypot: !s.enableHoneypot }))
-                  }
-                  onLabel="Yes"
-                  offLabel="No"
-                />
-                <Typography variant="pi">Honeypot anti-spam</Typography>
-              </Flex>
-              <Flex alignItems="center" gap={2}>
-                <Toggle
-                  checked={settings.publicPage}
-                  onChange={() =>
-                    setSettings((s) => ({ ...s, publicPage: !s.publicPage }))
-                  }
-                  onLabel="Yes"
-                  offLabel="No"
-                />
-                <Typography variant="pi">Public page</Typography>
-              </Flex>
-            </Flex>
-          </Flex>
-
-        </Box>
-      )}
-
-      {/* Public page bar */}
-      {settings.publicPage && slug && (
-        <Box
-          paddingTop={2}
-          paddingBottom={2}
-          paddingLeft={4}
-          paddingRight={4}
-          background="success100"
-          style={{ borderBottom: '1px solid var(--strapi-success-200)', flexShrink: 0 }}
-        >
-          <Flex alignItems="center" gap={2}>
-            <Typography variant="pi" textColor="success700" fontWeight="semiBold">
-              Public URL:
-            </Typography>
-            <Typography variant="pi" textColor="success600" style={{ fontFamily: 'monospace' }}>
-              {window.location.origin}/api/strapi-plugin-form-builder-cms/page/{slug}
-            </Typography>
-            <Button
-              variant="ghost"
-              size="S"
-              onClick={() => window.open(`${window.location.origin}/api/strapi-plugin-form-builder-cms/page/${slug}`, '_blank')}
-            >
-              Open
-            </Button>
-          </Flex>
-        </Box>
+        <SettingsDrawer
+          description={description}
+          setDescription={setDescription}
+          settings={settings}
+          setSettings={setSettings}
+          slug={slug}
+          publishedAt={publishedAt}
+          onCancel={() => { const s = settingsSnapshot.current; setDescription(s.description); setSettings(s.settings); setShowSettings(false); }}
+          onSave={async () => { await saveDraft(); setShowSettings(false); }}
+        />
       )}
 
       {/* Main area */}
@@ -396,6 +436,7 @@ export function FormBuilderPage() {
 
       <FormPreview
         title={title}
+        description={description}
         fields={fields}
         settings={settings}
         open={showPreview}
@@ -405,6 +446,10 @@ export function FormBuilderPage() {
       {!isNew && (
         <EmbedModal
           formId={id!}
+          title={title}
+          slug={slug}
+          publishedAt={publishedAt}
+          publicPage={settings.publicPage}
           open={showEmbed}
           onClose={() => setShowEmbed(false)}
         />
