@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0-rc.1] - 2026-07-02
+
+### Changed
+- First release candidate — promotes the `1.0.0-alpha.4` feature set (draft/publish separation, per-submission field snapshots, full admin redesign). No functional changes since `1.0.0-alpha.4`.
+
+---
+
 ## [1.0.0-alpha.4] - 2026-07-02
 
 ### ⚠️ Breaking
