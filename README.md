@@ -243,6 +243,7 @@ Pull requests are welcome. For major changes please open an issue first to discu
 ## Roadmap
 
 - [x] Export submissions as CSV
+- [ ] CAPTCHA / spam protection (Cloudflare Turnstile · reCAPTCHA)
 - [ ] Email notifications on new submission
 - [ ] File upload field type
 - [ ] Multi-step / wizard forms
