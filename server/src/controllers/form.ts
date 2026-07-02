@@ -88,6 +88,9 @@ function embedScript(): string {
   function mount(el, form, base) {
     var formEl = document.createElement('form');
     formEl.className = 'sfb-form';
+    // let the plugin's own validation + server errors drive messages instead of
+    // the browser's native required bubble
+    formEl.noValidate = true;
 
     // honeypot: hidden field bots tend to fill; humans never see it
     if (form.settings && form.settings.enableHoneypot) {
@@ -332,7 +335,7 @@ function embedScript(): string {
     var s = document.createElement('style');
     s.id = 'sfb-css';
     s.textContent = [
-      '.sfb-form { font-family: inherit; }',
+      '.sfb-form { font-family: inherit; text-align: left; color: #32324d; line-height: 1.5; }',
       '.sfb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }',
       '.sfb-field { display: flex; flex-direction: column; gap: 4px; }',
       '.sfb-label { font-size: 13px; font-weight: 600; color: #32324d; }',

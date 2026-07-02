@@ -8,6 +8,25 @@ interface Props {
   onChange: (updated: FormField) => void;
 }
 
+// Which settings apply to which field type (drives conditional visibility).
+const PLACEHOLDER_TYPES = ['text', 'email', 'number', 'phone', 'url', 'password', 'textarea', 'select'];
+
+const RULE_LABELS: Record<string, string> = {
+  minLength: 'Min. length', maxLength: 'Max. length',
+  min: 'Min. value', max: 'Max. value',
+  email: 'Email', url: 'URL', pattern: 'Pattern (regex)',
+};
+
+// Extra validation rules (beyond Required) that make sense for a given type.
+// email/url/number already auto-validate their format by type, so those rules
+// are only offered where you'd validate free text.
+function ruleTypesFor(type: string): string[] {
+  if (type === 'number') return ['min', 'max'];
+  if (type === 'text' || type === 'textarea') return ['minLength', 'maxLength', 'pattern', 'email', 'url'];
+  if (['email', 'url', 'phone', 'password'].includes(type)) return ['minLength', 'maxLength', 'pattern'];
+  return []; // select, radio, checkbox, checkbox-group, date, time → only Required
+}
+
 // One-time style block for input focus + placeholder (inline styles can't do :focus).
 const STYLE_ID = 'sfb-settings-style';
 function ensureStyle() {
@@ -89,18 +108,27 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
     update({ options: (field.options || []).map((o, j) => (j === i ? { ...o, ...patch } : o)) });
   const removeOption = (i: number) => update({ options: (field.options || []).filter((_, j) => j !== i) });
 
+  const ruleTypes = ruleTypesFor(field.type);
   const addValidation = () => {
     const used = field.validation.map((r) => r.type);
-    const def =
-      field.type === 'number' ? (used.includes('min') ? (used.includes('max') ? 'pattern' : 'max') : 'min') :
-      field.type === 'email'  ? (used.includes('email') ? 'minLength' : 'email') :
-      field.type === 'url'    ? (used.includes('url') ? 'minLength' : 'url') :
-      used.includes('minLength') ? (used.includes('maxLength') ? 'pattern' : 'maxLength') : 'minLength';
-    update({ validation: [...field.validation, { type: def }] });
+    const next = ruleTypes.find((t) => !used.includes(t));
+    if (!next) return;
+    update({ validation: [...field.validation, { type: next }] });
   };
   const updateValidation = (i: number, patch: Partial<ValidationRule>) =>
     update({ validation: field.validation.map((v, j) => (j === i ? { ...v, ...patch } : v)) });
   const removeValidation = (i: number) => update({ validation: field.validation.filter((_, j) => j !== i) });
+
+  // "required" is a boolean flag; its custom message lives in a validation rule of type 'required'
+  const reqMsg = field.validation.find((v) => v.type === 'required')?.message || '';
+  const setRequired = (on: boolean) => {
+    const rest = field.validation.filter((v) => v.type !== 'required');
+    update({ required: on, validation: on ? field.validation : rest });
+  };
+  const setReqMsg = (msg: string) => {
+    const rest = field.validation.filter((v) => v.type !== 'required');
+    update({ validation: msg ? [...rest, { type: 'required', message: msg }] : rest });
+  };
 
   const kicker = `${typeName(field.type)} field`.toUpperCase();
 
@@ -133,7 +161,13 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
           {!deco && (
             <>
               <TextField label="Name (technical)" value={field.name} onChange={(v) => update({ name: v })} mono hint="Used as the key in submissions & the API payload." />
-              <TextField label="Placeholder" value={field.placeholder || ''} onChange={(v) => update({ placeholder: v })} />
+              {PLACEHOLDER_TYPES.includes(field.type) && (
+                <TextField
+                  label={field.type === 'select' ? 'Empty option text' : 'Placeholder'}
+                  value={field.placeholder || ''}
+                  onChange={(v) => update({ placeholder: v })}
+                />
+              )}
               <TextField label="Help text" value={field.helpText || ''} onChange={(v) => update({ helpText: v })} />
             </>
           )}
@@ -154,16 +188,6 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
             </Labeled>
           )}
 
-          {!deco && (
-            <>
-              <div style={{ height: 1, background: C.n150, margin: '2px 0' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ font: `600 13px ${FF}`, color: C.n700 }}>Required</span>
-                <Toggle on={field.required} onClick={() => update({ required: !field.required })} />
-              </div>
-            </>
-          )}
-
           {field.type !== 'divider' && (
             <Labeled label="Width">
               <Seg value={field.width} onChange={(v) => update({ width: v })} />
@@ -176,49 +200,57 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
 
       {tab === 'validation' && !deco && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>Rules</span>
-            <button type="button" onClick={addValidation} style={{ height: 30, padding: '0 10px', borderRadius: 4, border: `1px solid ${C.p200}`, background: C.p100, color: C.p700, font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Add rule</button>
+          {/* Required — flag + custom message */}
+          <div style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ font: `600 13px ${FF}`, color: C.n800 }}>Required</span>
+              <Toggle on={field.required} onClick={() => setRequired(!field.required)} />
+            </div>
+            {field.required && (
+              <input className="sfb-inp" value={reqMsg} placeholder={`${field.label || 'This field'} is required`} onChange={(e) => setReqMsg(e.target.value)} style={inpStyle} />
+            )}
           </div>
 
-          {field.validation.length === 0 && (
-            <span style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>No rules yet. Required is set on the General tab; add length, value or pattern rules here.</span>
-          )}
-
-          {field.validation.map((rule, i) => {
-            const used = field.validation.filter((_, j) => j !== i).map((r) => r.type);
-            const isNumber = field.type === 'number', isEmail = field.type === 'email', isUrl = field.type === 'url';
-            const available = [
-              !isNumber && { value: 'minLength', label: 'Min. length' },
-              !isNumber && { value: 'maxLength', label: 'Max. length' },
-              isNumber && { value: 'min', label: 'Min. value' },
-              isNumber && { value: 'max', label: 'Max. value' },
-              !isEmail && { value: 'email', label: 'Email' },
-              !isUrl && { value: 'url', label: 'URL' },
-              { value: 'pattern', label: 'Pattern (regex)' },
-            ].filter((o): o is { value: string; label: string } => !!o && (o.value === rule.type || !used.includes(o.value)));
-            const hasValue = ['minLength', 'maxLength', 'min', 'max', 'pattern'].includes(rule.type);
-            return (
-              <div key={i} style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <select className="sfb-inp" value={rule.type} onChange={(e) => updateValidation(i, { type: e.target.value, value: undefined, message: '' })} style={{ ...inpStyle, flex: 1, cursor: 'pointer' }}>
-                    {available.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                  <button type="button" onClick={() => removeValidation(i)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, color: C.n400, background: C.n0, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Trash width="14px" height="14px" fill="currentColor" />
-                  </button>
-                </div>
-                {hasValue && (
-                  <input className="sfb-inp" placeholder={rule.type === 'pattern' ? '^[a-z0-9]+$' : 'Value'} value={String(rule.value ?? '')} onChange={(e) => updateValidation(i, { value: e.target.value })} style={{ ...inpStyle, ...(rule.type === 'pattern' ? { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 } : {}) }} />
-                )}
-                <input className="sfb-inp" placeholder="Custom error message (optional)" value={rule.message || ''} onChange={(e) => updateValidation(i, { message: e.target.value })} style={inpStyle} />
+          {ruleTypes.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>Rules</span>
+                <button type="button" onClick={addValidation} style={{ height: 30, padding: '0 10px', borderRadius: 4, border: `1px solid ${C.p200}`, background: C.p100, color: C.p700, font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Add rule</button>
               </div>
-            );
-          })}
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, font: `400 11px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
-            <span style={{ color: C.wrn600 }}>⚠</span>Rules run on the public form and in the preview.
-          </div>
+              {field.validation.filter((v) => v.type !== 'required').length === 0 && (
+                <span style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>No extra rules yet.</span>
+              )}
+
+              {field.validation.map((rule, i) => {
+                if (rule.type === 'required') return null;
+                const used = field.validation.filter((_, j) => j !== i).map((r) => r.type);
+                // options = rules valid for this type, minus ones already used (keep current)
+                const available = ruleTypes.filter((t) => t === rule.type || !used.includes(t));
+                const hasValue = ['minLength', 'maxLength', 'min', 'max', 'pattern'].includes(rule.type);
+                return (
+                  <div key={i} style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <select className="sfb-inp" value={rule.type} onChange={(e) => updateValidation(i, { type: e.target.value, value: undefined, message: '' })} style={{ ...inpStyle, flex: 1, cursor: 'pointer' }}>
+                        {available.map((t) => <option key={t} value={t}>{RULE_LABELS[t]}</option>)}
+                      </select>
+                      <button type="button" onClick={() => removeValidation(i)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, color: C.n400, background: C.n0, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Trash width="14px" height="14px" fill="currentColor" />
+                      </button>
+                    </div>
+                    {hasValue && (
+                      <input className="sfb-inp" placeholder={rule.type === 'pattern' ? '^[a-z0-9]+$' : 'Value'} value={String(rule.value ?? '')} onChange={(e) => updateValidation(i, { value: e.target.value })} style={{ ...inpStyle, ...(rule.type === 'pattern' ? { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 } : {}) }} />
+                    )}
+                    <input className="sfb-inp" placeholder="Custom error message (optional)" value={rule.message || ''} onChange={(e) => updateValidation(i, { message: e.target.value })} style={inpStyle} />
+                  </div>
+                );
+              })}
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, font: `400 11px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
+                <span style={{ color: C.wrn600 }}>⚠</span>Rules run on the public form and in the preview.
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
