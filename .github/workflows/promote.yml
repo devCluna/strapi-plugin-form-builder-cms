@@ -1,0 +1,37 @@
+name: Promote to npm latest
+
+# Manually point the npm "latest" dist-tag at a chosen already-published version.
+# Alphas publish under the "alpha" tag automatically; run this when you decide a
+# specific version should be what `npm install <pkg>` (no tag) resolves to.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Published version to promote to latest (e.g. 1.0.0-alpha.4)'
+        required: true
+        type: string
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify the version exists on npm
+        run: |
+          if ! npm view strapi-plugin-form-builder-cms@${{ inputs.version }} version >/dev/null 2>&1; then
+            echo "❌ ${{ inputs.version }} is not published on npm."
+            exit 1
+          fi
+
+      - name: Point latest at ${{ inputs.version }}
+        run: npm dist-tag add strapi-plugin-form-builder-cms@${{ inputs.version }} latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Done
+        run: echo "✅ npm 'latest' now points to ${{ inputs.version }}"
