@@ -20,6 +20,7 @@
     "description": { "type": "text" },
     "fields": { "type": "json", "required": true, "default": [] },
     "conditionalLogic": { "type": "json", "default": [] },
+    "publishedData": { "type": "json" },
     "settings": {
       "type": "json",
       "default": {
