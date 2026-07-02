@@ -1,14 +1,24 @@
 name: Promote to npm latest
 
-# Manually point the npm "latest" dist-tag at a chosen already-published version.
-# Alphas publish under the "alpha" tag automatically; run this when you decide a
-# specific version should be what `npm install <pkg>` (no tag) resolves to.
+# Manually point the npm "latest" dist-tag (what `npm install <pkg>` resolves to)
+# at a chosen version. Pick a source dist-tag from the dropdown — the version it
+# currently points to is promoted — or type an exact version to override.
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Published version to promote to latest (e.g. 1.0.0-alpha.4)'
+      source:
+        description: 'Promote the version currently on this dist-tag'
         required: true
+        default: alpha
+        type: choice
+        options:
+          - alpha
+          - beta
+          - rc
+          - latest
+      version:
+        description: 'Exact version override (optional, e.g. 1.0.0-alpha.4)'
+        required: false
         type: string
 
 jobs:
@@ -21,17 +31,29 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Verify the version exists on npm
+      - name: Resolve version to promote
+        id: resolve
         run: |
-          if ! npm view strapi-plugin-form-builder-cms@${{ inputs.version }} version >/dev/null 2>&1; then
-            echo "❌ ${{ inputs.version }} is not published on npm."
+          PKG=strapi-plugin-form-builder-cms
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(npm view "$PKG@${{ inputs.source }}" version 2>/dev/null)
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "❌ Could not resolve a version (tag '${{ inputs.source }}' may be unset and no override given)."
             exit 1
           fi
+          if ! npm view "$PKG@$VERSION" version >/dev/null 2>&1; then
+            echo "❌ $VERSION is not published on npm."
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Promoting $VERSION to latest."
 
-      - name: Point latest at ${{ inputs.version }}
-        run: npm dist-tag add strapi-plugin-form-builder-cms@${{ inputs.version }} latest
+      - name: Point latest at ${{ steps.resolve.outputs.version }}
+        run: npm dist-tag add strapi-plugin-form-builder-cms@${{ steps.resolve.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Done
-        run: echo "✅ npm 'latest' now points to ${{ inputs.version }}"
+        run: echo "✅ npm 'latest' now points to ${{ steps.resolve.outputs.version }}"

@@ -1,13 +1,12 @@
 name: Publish to npm
 
-# Publishes automatically when package.json lands on main with a version that
-# isn't on npm yet. Merges that don't change the version are a no-op.
+# Runs on every push to main and publishes only when package.json's version
+# isn't on npm yet (prerelease versions go under their alpha/beta/rc dist-tag).
+# Merges that don't introduce a new version are a no-op.
 on:
   push:
     branches:
       - main
-    paths:
-      - 'package.json'
 
 jobs:
   publish:
