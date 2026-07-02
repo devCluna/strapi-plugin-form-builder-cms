@@ -1,5 +1,4 @@
 import React from 'react';
-import { Box, Flex, Typography, IconButton } from '@strapi/design-system';
 import {
   DndContext,
   closestCenter,
@@ -17,20 +16,20 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash, Drag } from '@strapi/icons';
+import { Trash } from '@strapi/icons';
 import { FormField } from '../types';
+import { C, FF, isDecorative, typeName } from '../ui';
 
-/**
- * Renders a draggable, selectable row that represents a FormField with a delete action.
- *
- * The row highlights when `selected`. Clicking the row calls `onSelect`; interacting with the drag handle does not toggle selection; clicking the delete button calls `onDelete`.
- *
- * @param field - The form field to render (label and type are displayed).
- * @param selected - Whether this row is currently selected; controls visual highlight.
- * @param onSelect - Callback invoked when the row (outside the drag handle and delete button) is clicked.
- * @param onDelete - Callback invoked when the delete button is clicked.
- * @returns The rendered sortable field row element.
- */
+function DragDots({ active }: { active: boolean }) {
+  return (
+    <span style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 3px)', gridAutoRows: '3px', gap: 3, cursor: 'grab', flex: 'none' }}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <i key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: active ? C.p500 : C.n300 }} />
+      ))}
+    </span>
+  );
+}
+
 function SortableFieldRow({
   field,
   selected,
@@ -44,60 +43,49 @@ function SortableFieldRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: field.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
+  const deco = isDecorative(field.type);
 
   return (
-    <Box
+    <div
       ref={setNodeRef}
-      padding={3}
-      background={selected ? 'primary100' : 'neutral0'}
-      marginBottom={2}
       onClick={onSelect}
-      hasRadius
       style={{
-        ...style,
-        border: `2px solid ${selected ? 'var(--strapi-primary-600)' : 'transparent'}`,
-        outline: selected ? 'none' : '1px solid var(--strapi-neutral-200)',
-        outlineOffset: '-1px',
-        cursor: 'pointer',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        display: 'flex', alignItems: 'center', gap: 16,
+        background: selected ? C.p100 : C.n0,
+        border: `1px solid ${selected ? C.p600 : C.n150}`,
+        borderRadius: 6, padding: '15px 18px', cursor: 'pointer',
+        boxShadow: selected ? `0 0 0 1px ${C.p600}` : '0 1px 4px rgba(33,33,52,.1)',
       }}
     >
-      <Flex justifyContent="space-between" alignItems="center">
-        <Flex gap={2} alignItems="center">
-          <Box
-            {...attributes}
-            {...listeners}
-            style={{ cursor: 'grab', color: 'var(--strapi-neutral-400)', padding: '0 4px' }}
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
-            <Drag />
-          </Box>
-          <Box>
-            <Typography variant="pi" fontWeight="semiBold">
-              {field.label || '(no label)'}
-            </Typography>
-            <Typography variant="pi" textColor="neutral500">
-              {' '}— {field.type}
-            </Typography>
-          </Box>
-        </Flex>
-        <IconButton
-          label="Delete field"
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          variant="ghost"
-        >
-          <Trash />
-        </IconButton>
-      </Flex>
-    </Box>
+      <span
+        {...attributes}
+        {...listeners}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <DragDots active={selected} />
+      </span>
+      <div style={{ flex: 1, font: `600 15px ${FF}`, color: C.n900, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label || '(no label)'}</span>
+        {field.required && <span style={{ color: C.dng600, fontWeight: 700 }}>*</span>}
+        <span style={{ fontWeight: 400, color: C.n500 }}>— {typeName(field.type)}</span>
+      </div>
+      {deco ? (
+        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.wrn700, background: C.wrn100, border: '1px solid #f2d9a6', borderRadius: 4, padding: '3px 7px', flex: 'none' }}>Deco</span>
+      ) : (
+        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.n600, background: C.n100, border: `1px solid ${C.n200}`, borderRadius: 4, padding: '3px 7px', flex: 'none' }}>{field.width}</span>
+      )}
+      <button
+        type="button"
+        title="Delete field"
+        onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDelete(); }}
+        style={{ width: 30, height: 30, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n400, border: 'none', background: 'none', cursor: 'pointer', flex: 'none' }}
+      >
+        <Trash width="16px" height="16px" fill="currentColor" />
+      </button>
+    </div>
   );
 }
 
@@ -124,25 +112,10 @@ export function DropZone({ fields, selectedId, onSelect, onDelete, onReorder }: 
     }
   };
 
-  if (fields.length === 0) {
-    return (
-      <Box
-        padding={10}
-        background="neutral100"
-        hasRadius
-        style={{ border: '2px dashed var(--strapi-neutral-300)', textAlign: 'center', flex: 1 }}
-      >
-        <Typography textColor="neutral500">
-          Click on a field in the left panel to add it to the form
-        </Typography>
-      </Box>
-    );
-  }
-
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-        <Box style={{ flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {fields.map((field) => (
             <SortableFieldRow
               key={field.id}
@@ -152,7 +125,7 @@ export function DropZone({ fields, selectedId, onSelect, onDelete, onReorder }: 
               onDelete={() => onDelete(field.id)}
             />
           ))}
-        </Box>
+        </div>
       </SortableContext>
     </DndContext>
   );
