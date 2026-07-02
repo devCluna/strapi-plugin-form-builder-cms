@@ -9,11 +9,30 @@ function generateSlug(title: string): string {
   return `${base}-${Date.now()}`;
 }
 
+// Frozen copy of the working form stored at publish time — what the public is served.
+function snapshotOf(data: any) {
+  return {
+    title: data.title,
+    description: data.description ?? '',
+    fields: data.fields ?? [],
+    conditionalLogic: data.conditionalLogic ?? [],
+    settings: data.settings ?? {},
+  };
+}
+
 export default ({ strapi }: { strapi: any }) => ({
   async find() {
-    return strapi.db.query(FORM_UID).findMany({
+    const forms = await strapi.db.query(FORM_UID).findMany({
       orderBy: { createdAt: 'desc' },
     });
+    // ponytail: one count query per form; fine at admin-list scale, revisit with a groupBy if forms grow large
+    const SUBMISSION_UID = `plugin::${PLUGIN_ID}.form-submission`;
+    return Promise.all(
+      forms.map(async (form: any) => ({
+        ...form,
+        submissionCount: await strapi.db.query(SUBMISSION_UID).count({ where: { form: form.id } }),
+      }))
+    );
   },
 
   async findOne(id: number) {
@@ -32,11 +51,23 @@ export default ({ strapi }: { strapi: any }) => ({
 
   async create(data: any) {
     const slug = generateSlug(data.title || 'form');
-    return strapi.db.query(FORM_UID).create({ data: { ...data, slug } });
+    const payload: any = { ...data, slug };
+    // Publishing captures the working copy as the immutable live snapshot.
+    if (data.publishedAt) payload.publishedData = snapshotOf(data);
+    return strapi.db.query(FORM_UID).create({ data: payload });
   },
 
   async update(id: number, data: any) {
-    return strapi.db.query(FORM_UID).update({ where: { id }, data });
+    const payload: any = { ...data };
+    if (data.publishedAt) {
+      // Publish: freeze the current working copy as the live version.
+      payload.publishedData = snapshotOf(data);
+    } else {
+      // Save draft: never unpublish or overwrite what the public sees.
+      delete payload.publishedAt;
+      delete payload.publishedData;
+    }
+    return strapi.db.query(FORM_UID).update({ where: { id }, data: payload });
   },
 
   async delete(id: number) {
@@ -47,7 +78,7 @@ export default ({ strapi }: { strapi: any }) => ({
     const original = await strapi.db.query(FORM_UID).findOne({ where: { id } });
     if (!original) return null;
 
-    const { id: _id, slug, createdAt, updatedAt, publishedAt, ...rest } = original;
+    const { id: _id, slug, createdAt, updatedAt, publishedAt, publishedData, ...rest } = original;
     return strapi.db.query(FORM_UID).create({
       data: {
         ...rest,
@@ -57,35 +88,31 @@ export default ({ strapi }: { strapi: any }) => ({
     });
   },
 
+  // Public views serve the published snapshot only — draft edits never leak.
   async getPublicSchemaById(id: number) {
     const form = await this.findOne(id);
-    if (!form) return null;
-    return {
-      data: {
-        id: form.id,
-        title: form.title,
-        slug: form.slug,
-        description: form.description,
-        fields: form.fields || [],
-        settings: form.settings || {},
-      },
-    };
+    return publicSchemaFrom(form);
   },
 
   async getPublicSchema(slug: string) {
     const form = await this.findBySlug(slug);
-    if (!form) return null;
-
-    return {
-      data: {
-        id: form.id,
-        title: form.title,
-        slug: form.slug,
-        description: form.description,
-        fields: form.fields || [],
-        conditionalLogic: form.conditionalLogic || [],
-        settings: form.settings || {},
-      },
-    };
+    return publicSchemaFrom(form);
   },
 });
+
+function publicSchemaFrom(form: any) {
+  if (!form || !form.publishedAt) return null;
+  // Legacy fallback: forms published before publishedData existed serve their current copy.
+  const p = form.publishedData || snapshotOf(form);
+  return {
+    data: {
+      id: form.id,
+      slug: form.slug,
+      title: p.title,
+      description: p.description,
+      fields: p.fields || [],
+      conditionalLogic: p.conditionalLogic || [],
+      settings: p.settings || {},
+    },
+  };
+}

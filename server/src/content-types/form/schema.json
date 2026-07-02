@@ -20,11 +20,12 @@
     "description": { "type": "text" },
     "fields": { "type": "json", "required": true, "default": [] },
     "conditionalLogic": { "type": "json", "default": [] },
+    "publishedData": { "type": "json" },
     "settings": {
       "type": "json",
       "default": {
-        "submitButtonText": "Enviar",
-        "successMessage": "Formulario enviado correctamente",
+        "submitButtonText": "Submit",
+        "successMessage": "Form submitted successfully",
         "enableHoneypot": true,
         "enableRateLimit": true,
         "maxSubmissionsPerHour": 60,

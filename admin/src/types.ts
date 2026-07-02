@@ -79,12 +79,15 @@ export interface Form {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  submissionCount?: number;
 }
 
 export interface FormSubmission {
   id: number;
   form: { id: number; title: string; slug: string };
   data: Record<string, any>;
+  // schema snapshot captured at submit time (accurate even after the form changes)
+  fields?: Array<Pick<FormField, 'name' | 'label' | 'type' | 'order' | 'options'>>;
   metadata: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;

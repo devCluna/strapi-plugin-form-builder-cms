@@ -59,5 +59,10 @@ export function useFormsApi() {
       const { data } = await get(`${BASE}/submissions/${formId}/stats`);
       return data;
     },
+
+    async exportSubmissions(formId: number): Promise<string> {
+      const { data } = await get(`${BASE}/submissions/${formId}/export`);
+      return typeof data === 'string' ? data : String(data ?? '');
+    },
   };
 }

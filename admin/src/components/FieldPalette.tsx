@@ -1,86 +1,66 @@
-import React, { useState } from 'react';
-import { Box, Flex, Typography } from '@strapi/design-system';
+import React, { useMemo, useState } from 'react';
+import { Search } from '@strapi/icons';
 import { FieldType } from '../types';
-
-interface PaletteItem {
-  type: FieldType;
-  label: string;
-  icon: string;
-  group: string;
-}
-
-const PALETTE_ITEMS: PaletteItem[] = [
-  // Basic
-  { type: 'text',     label: 'Text',           icon: '📝', group: 'Basic' },
-  { type: 'email',    label: 'Email',           icon: '✉️', group: 'Basic' },
-  { type: 'number',   label: 'Number',          icon: '#',  group: 'Basic' },
-  { type: 'phone',    label: 'Phone',           icon: '📱', group: 'Basic' },
-  { type: 'textarea', label: 'Long text',       icon: '📄', group: 'Basic' },
-  { type: 'password', label: 'Password',        icon: '🔒', group: 'Basic' },
-  // Selection
-  { type: 'select',         label: 'Select',         icon: '▼',  group: 'Selection' },
-  { type: 'radio',          label: 'Radio',          icon: '◉',  group: 'Selection' },
-  { type: 'checkbox',       label: 'Checkbox',       icon: '☑',  group: 'Selection' },
-  { type: 'checkbox-group', label: 'Checkbox group', icon: '☑☑', group: 'Selection' },
-  // Advanced
-  { type: 'date',   label: 'Date',   icon: '📅', group: 'Advanced' },
-  { type: 'time',   label: 'Time',   icon: '🕐', group: 'Advanced' },
-  { type: 'url',    label: 'URL',    icon: '🔗', group: 'Advanced' },
-  { type: 'hidden', label: 'Hidden', icon: '👁',  group: 'Advanced' },
-  // Layout
-  { type: 'heading',   label: 'Heading',   icon: 'H', group: 'Layout' },
-  { type: 'paragraph', label: 'Paragraph', icon: '¶', group: 'Layout' },
-  { type: 'divider',   label: 'Divider',   icon: '—', group: 'Layout' },
-];
-
-const GROUPS = ['Basic', 'Selection', 'Advanced', 'Layout'];
+import { C, FF, FIELD_CATEGORIES, FieldIcon } from '../ui';
 
 interface Props {
   onAdd: (type: FieldType) => void;
 }
 
 export function FieldPalette({ onAdd }: Props) {
-  const [hovered, setHovered] = useState<FieldType | null>(null);
+  const [query, setQuery] = useState('');
+  const [hover, setHover] = useState<FieldType | null>(null);
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return FIELD_CATEGORIES;
+    return FIELD_CATEGORIES
+      .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
+      .filter((g) => g.items.length > 0);
+  }, [query]);
 
   return (
-    <Box
-      padding={4}
-      background="neutral100"
-      style={{ width: 200, minWidth: 200, overflowY: 'auto', alignSelf: 'stretch', borderRight: '1px solid var(--strapi-neutral-200)' }}
-    >
-      <Typography variant="sigma" textColor="neutral600" marginBottom={3}>
-        FIELDS
-      </Typography>
-      {GROUPS.map((group) => (
-        <Box key={group} marginBottom={4}>
-          <Typography variant="pi" fontWeight="bold" textColor="neutral500" marginBottom={2}>
-            {group}
-          </Typography>
-          <Flex direction="column" gap={1} alignItems="stretch">
-            {PALETTE_ITEMS.filter((i) => i.group === group).map((item) => (
-              <Box
-                key={item.type}
-                padding={2}
-                background={hovered === item.type ? 'primary100' : 'neutral0'}
-                hasRadius
-                style={{
-                  cursor: 'pointer',
-                  border: '1px solid var(--strapi-neutral-200)',
-                  userSelect: 'none',
-                }}
-                onClick={() => onAdd(item.type)}
-                onMouseEnter={() => setHovered(item.type)}
-                onMouseLeave={() => setHovered(null)}
-              >
-                <Flex gap={2} alignItems="center">
-                  <span style={{ fontSize: 14 }}>{item.icon}</span>
-                  <Typography variant="pi">{item.label}</Typography>
-                </Flex>
-              </Box>
-            ))}
-          </Flex>
-        </Box>
+    <div style={{ width: 232, minWidth: 232, background: C.n0, borderRight: `1px solid ${C.n150}`, overflowY: 'auto', alignSelf: 'stretch', padding: '16px 14px' }}>
+      <div style={{ height: 34, border: `1px solid ${C.n200}`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', marginBottom: 14 }}>
+        <span style={{ color: C.n500, display: 'inline-flex' }}><Search width="14px" height="14px" fill={C.n500} /></span>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search fields"
+          style={{ border: 'none', outline: 'none', flex: 1, font: `400 12px ${FF}`, color: C.n800, background: 'none', width: '100%' }}
+        />
+      </div>
+
+      {groups.map((grp) => (
+        <div key={grp.cat}>
+          <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500, margin: '14px 4px 8px' }}>{grp.cat}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {grp.items.map((item) => {
+              const on = hover === item.type;
+              const full = item.type === 'divider';
+              return (
+                <button
+                  key={item.type}
+                  type="button"
+                  onClick={() => onAdd(item.type)}
+                  onMouseEnter={() => setHover(item.type)}
+                  onMouseLeave={() => setHover(null)}
+                  style={{
+                    gridColumn: full ? '1 / -1' : undefined,
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: 10,
+                    border: `1px solid ${on ? C.p500 : C.n200}`, borderRadius: 6,
+                    background: on ? C.p100 : C.n0, cursor: 'pointer', textAlign: 'left',
+                    transition: 'border-color .1s, background .1s',
+                  }}
+                >
+                  <span style={{ color: on ? C.p600 : C.n600, display: 'inline-flex' }}><FieldIcon type={item.type} size={16} /></span>
+                  <span style={{ font: `500 12px ${FF}`, color: C.n800 }}>{item.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }

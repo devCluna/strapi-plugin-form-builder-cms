@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0-alpha.4] - 2026-07-02
+
+### ⚠️ Breaking
+- Public serving now requires the form to be **published**. Previously the public page, embed schema and submit endpoint served the working record regardless of draft/publish state; now an unpublished form returns 404 and rejects submissions. Forms published before this release keep working via a fallback — **re-publish them once after upgrading** for the cleanest behavior.
+
+### Added
+- **Draft / Publish separation** — publishing freezes an immutable `publishedData` snapshot; the public form always serves that snapshot, so *Save draft* no longer affects the live form. An "Unpublished changes" indicator appears when the saved draft differs from what's published.
+- **Per-submission field snapshot** — each submission stores the field schema used at submit time, so the detail view stays accurate even after fields are added, removed or renamed.
+- **Form templates** — first-run onboarding and a "Create form" picker with 6 starters (Contact, Newsletter, Feedback, Job application, Event RSVP, Blank).
+- **Forms list**: submissions-count column and search over title/slug.
+- **Submissions**: bulk *mark as read / archive / delete*, text search, right-side detail drawer with prev/next navigation, and a per-form column picker (union of current fields + stored keys).
+- Right-aligned "View live" link and a Settings slide-over drawer in the builder.
+
+### Changed
+- Full visual redesign of the forms list, builder and submissions screens to match the design system.
+- Field settings panel split into General / Validation tabs; settings drawer changes apply on Save.
+- Builder header shows a single status pill (Draft / Published / Unpublished changes).
+- Submission detail always renders the stored data (never hides an answer); CSV export unchanged.
+- Releases are now published from version tags (`v*`) on a single `main` branch.
+
+### Fixed
+- Coerce non-string form `description` to a string (fixed `[object Object]` in the settings drawer).
+- Submission detail rows are baseline-aligned.
+
+---
+
 ## [1.0.0-alpha.3] - 2026-04-04
 
 ### Changed
