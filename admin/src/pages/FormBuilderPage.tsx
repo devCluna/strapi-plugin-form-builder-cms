@@ -25,6 +25,17 @@ const DEFAULT_SETTINGS: FormSettings = {
   publicPage: false,
 };
 
+// Order-insensitive stringify so key ordering in stored JSON doesn't create false diffs.
+function stableStringify(v: any): string {
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v ?? null);
+}
+const liveSnap = (o: { title: string; description: string; fields: any; settings: any }) =>
+  stableStringify({ title: o.title, description: o.description ?? '', fields: o.fields ?? [], settings: o.settings ?? {} });
+
 function HeaderBtn({ variant, onClick, disabled, children }: {
   variant: 'ghost' | 'sec' | 'pri'; onClick: () => void; disabled?: boolean; children: React.ReactNode;
 }) {
@@ -73,17 +84,19 @@ function ToggleRow({ label, hint, on, onClick }: { label: string; hint: string; 
   );
 }
 
-function SettingsDrawer({ description, setDescription, settings, setSettings, slug, publishedAt, onCancel, onSave }: {
-  description: string;
-  setDescription: (v: string) => void;
-  settings: FormSettings;
-  setSettings: React.Dispatch<React.SetStateAction<FormSettings>>;
+function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt, onClose, onSave }: {
+  initialDescription: string;
+  initialSettings: FormSettings;
   slug: string | null;
   publishedAt: string | null;
-  onCancel: () => void;
-  onSave: () => void;
+  onClose: () => void;
+  onSave: (description: string, settings: FormSettings) => void;
 }) {
+  // edits stay in a local buffer — they only reach the form on "Save settings"
+  const [description, setDescription] = useState(initialDescription);
+  const [settings, setSettings] = useState<FormSettings>(initialSettings);
   const patch = (p: Partial<FormSettings>) => setSettings((s) => ({ ...s, ...p }));
+  const onCancel = onClose;
   const url = slug ? `${window.location.origin}/api/${PLUGIN_ID}/page/${slug}` : '';
   const live = !!publishedAt;
 
@@ -157,7 +170,7 @@ function SettingsDrawer({ description, setDescription, settings, setSettings, sl
 
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.n150}`, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <HeaderBtn variant="ghost" onClick={onCancel}>Cancel</HeaderBtn>
-          <HeaderBtn variant="pri" onClick={onSave}>Save settings</HeaderBtn>
+          <HeaderBtn variant="pri" onClick={() => onSave(description, settings)}>Save settings</HeaderBtn>
         </div>
       </div>
     </>
@@ -205,10 +218,9 @@ export function FormBuilderPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
+  const [publishedData, setPublishedData] = useState<any>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(isNew);
-  // snapshot of settings when the drawer opens, so Cancel can revert unsaved edits
-  const settingsSnapshot = useRef<{ description: string; settings: FormSettings }>({ description: '', settings: DEFAULT_SETTINGS });
 
   // dirty tracking: compare live state against the last saved/loaded snapshot
   const savedRef = useRef<string>('');
@@ -223,6 +235,7 @@ export function FormBuilderPage() {
         setFields(form.fields || []);
         setSettings({ ...DEFAULT_SETTINGS, ...(form.settings || {}) });
         setPublishedAt(form.publishedAt ?? null);
+        setPublishedData((form as any).publishedData ?? null);
         setSlug(form.slug ?? null);
         setLoading(false);
         savedRef.current = JSON.stringify({
@@ -238,6 +251,26 @@ export function FormBuilderPage() {
   }, [id]);
 
   const dirty = snapshot() !== savedRef.current;
+  // published but the working copy no longer matches what the public is served
+  // Compare the last SAVED copy (not in-memory edits) against the published snapshot,
+  // so the status flips on Save draft — not merely while typing.
+  const hasUnpublishedChanges = (() => {
+    if (!publishedAt || !publishedData) return false;
+    try {
+      return liveSnap(JSON.parse(savedRef.current || '{}')) !== liveSnap(publishedData);
+    } catch {
+      return false;
+    }
+  })();
+
+  // single status pill: unpublished-changes replaces the published/draft label
+  const status = hasUnpublishedChanges
+    ? { label: 'Unpublished changes', bg: C.wrn100, fg: C.wrn700, dot: C.wrn600 }
+    : publishedAt
+      ? { label: 'Published', bg: '#eafbe7', fg: C.suc700, dot: C.suc600 }
+      : { label: 'Draft', bg: C.n150, fg: C.n700, dot: C.n500 };
+  const liveUrl = slug ? `${window.location.origin}/api/${PLUGIN_ID}/page/${slug}` : '';
+  const showLiveLink = !!publishedAt && settings.publicPage && !!slug;
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -296,15 +329,19 @@ export function FormBuilderPage() {
     try {
       const now = new Date().toISOString();
       const payload = { title, description, fields, settings, conditionalLogic: [], publishedAt: now };
+      // working copy is now the live snapshot → clears the "unpublished changes" indicator
+      const snap = { title, description, fields, settings, conditionalLogic: [] };
       if (isNew) {
         const created = await api.createForm(payload);
         setPublishedAt(created.publishedAt ?? now);
+        setPublishedData(created.publishedData ?? snap);
         setSlug(created.slug ?? null);
         markSaved();
         navigate(`/plugins/${PLUGIN_ID}/builder/${created.id}`, { replace: true });
       } else {
         const updated = await api.updateForm(Number(id), payload);
         setPublishedAt(updated.publishedAt ?? now);
+        setPublishedData(updated.publishedData ?? snap);
         markSaved();
       }
     } finally {
@@ -351,22 +388,21 @@ export function FormBuilderPage() {
               )}
             </div>
             <div style={{ font: `400 11px ${FF}`, color: C.n500 }}>
-              {fields.length} {fields.length === 1 ? 'field' : 'fields'} · {publishedAt ? 'published' : 'draft'}
+              {fields.length} {fields.length === 1 ? 'field' : 'fields'}
             </div>
           </div>
-          <span style={{ height: 24, padding: '0 9px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, font: `700 11px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', background: publishedAt ? '#eafbe7' : C.n150, color: publishedAt ? C.suc700 : C.n700 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: publishedAt ? C.suc600 : C.n500 }} />
-            {publishedAt ? 'Published' : 'Draft'}
-          </span>
-          {/* ponytail: version chip is display-only until version history (backend) lands */}
-          <span title="Version history — coming soon" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 30, padding: '0 11px', border: `1px solid ${C.n200}`, borderRadius: 6, background: C.n0, font: `600 12px ${FF}`, color: C.n700 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.n400 }} />
-            {publishedAt ? 'Published' : 'v1 · editing'}
-            <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
+          <span title={hasUnpublishedChanges ? "Your edits aren't live yet — Publish to update the public form" : undefined} style={{ height: 24, padding: '0 9px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, font: `700 11px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', background: status.bg, color: status.fg }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.dot }} />
+            {status.label}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <HeaderBtn variant="ghost" onClick={() => { if (!showSettings) settingsSnapshot.current = { description, settings }; setShowSettings((v) => !v); }}>Settings</HeaderBtn>
+          {showLiveLink && (
+            <a href={liveUrl} target="_blank" rel="noopener noreferrer" title="Open the live public form" style={{ font: `600 12px ${FF}`, color: C.p600, textDecoration: 'none', marginRight: 4 }}>
+              View live ↗
+            </a>
+          )}
+          <HeaderBtn variant="ghost" onClick={() => setShowSettings((v) => !v)}>Settings</HeaderBtn>
           <HeaderBtn variant="ghost" onClick={() => setShowPreview(true)}>Preview</HeaderBtn>
           {!isNew && <HeaderBtn variant="ghost" onClick={() => setShowEmbed(true)}>Embed</HeaderBtn>}
           <HeaderBtn variant="sec" onClick={saveDraft} disabled={saving}>Save draft</HeaderBtn>
@@ -377,14 +413,12 @@ export function FormBuilderPage() {
       {/* Settings drawer (right slide-over) */}
       {showSettings && (
         <SettingsDrawer
-          description={description}
-          setDescription={setDescription}
-          settings={settings}
-          setSettings={setSettings}
+          initialDescription={description}
+          initialSettings={settings}
           slug={slug}
           publishedAt={publishedAt}
-          onCancel={() => { const s = settingsSnapshot.current; setDescription(s.description); setSettings(s.settings); setShowSettings(false); }}
-          onSave={async () => { await saveDraft(); setShowSettings(false); }}
+          onClose={() => setShowSettings(false)}
+          onSave={(desc, s) => { setDescription(desc); setSettings(s); setShowSettings(false); }}
         />
       )}
 

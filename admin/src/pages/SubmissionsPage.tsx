@@ -13,7 +13,7 @@ import {
   Dialog,
   Checkbox,
 } from '@strapi/design-system';
-import { ArrowLeft, Search } from '@strapi/icons';
+import { ArrowLeft, Search, Cog } from '@strapi/icons';
 import { useFormsApi } from '../api';
 import { Form, FormField, FormSubmission } from '../types';
 import { PLUGIN_ID } from '../pluginId';
@@ -62,6 +62,8 @@ export function SubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [colsOpen, setColsOpen] = useState(false);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
@@ -85,6 +87,23 @@ export function SubmissionsPage() {
 
   useEffect(() => { load(); }, [formId, statusFilter]);
 
+  // remember hidden columns per form (like Strapi's column picker)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`sfb-cols-${formId}`);
+      setHiddenCols(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setHiddenCols(new Set()); }
+  }, [formId]);
+
+  const toggleCol = (name: string) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      try { localStorage.setItem(`sfb-cols-${formId}`, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const dataFields: FormField[] = (form?.fields || []).filter(
     (f) => !['heading', 'paragraph', 'divider'].includes(f.type)
   );
@@ -96,6 +115,23 @@ export function SubmissionsPage() {
       String(s.id).includes(q) || JSON.stringify(s.data || {}).toLowerCase().includes(q)
     );
   }, [submissions, query]);
+
+  // Columns = current form fields + any keys still present in submissions (e.g. from
+  // fields that were later deleted), so no stored answer is hidden from the table.
+  const columns = useMemo(() => {
+    const cols: { name: string; label: string }[] = [];
+    const seen = new Set<string>();
+    for (const f of dataFields) { cols.push({ name: f.name, label: f.label }); seen.add(f.name); }
+    for (const s of submissions) {
+      const labelByName = new Map((s.fields || []).map((f) => [f.name, f.label] as const));
+      for (const k of Object.keys(s.data || {})) {
+        if (!seen.has(k)) { seen.add(k); cols.push({ name: k, label: labelByName.get(k) || k }); }
+      }
+    }
+    return cols;
+  }, [dataFields, submissions]);
+
+  const shownColumns = columns.filter((c) => !hiddenCols.has(c.name));
 
   const selIndex = visible.findIndex((s) => s.id === selectedId);
   const selected = selIndex >= 0 ? visible[selIndex] : null;
@@ -220,6 +256,32 @@ export function SubmissionsPage() {
               ))}
             </div>
           )}
+
+          <div style={{ marginLeft: 'auto', position: 'relative' }}>
+            <button type="button" onClick={() => setColsOpen((v) => !v)} style={{ height: 36, border: `1px solid ${C.n200}`, borderRadius: 4, background: C.n0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px', color: C.n700, font: `500 13px ${FF}`, cursor: 'pointer' }}>
+              <Cog width="14px" height="14px" fill={C.n600} /> Columns <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
+            </button>
+            {colsOpen && (
+              <>
+                <div onClick={() => setColsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 19 }} />
+                <div style={{ position: 'absolute', top: 44, right: 0, background: C.n0, border: `1px solid ${C.n200}`, borderRadius: 6, boxShadow: '0 2px 15px rgba(33,33,52,.1)', padding: 5, zIndex: 20, minWidth: 200, maxHeight: 320, overflowY: 'auto' }}>
+                  {columns.length === 0 ? (
+                    <div style={{ padding: '8px 10px', font: `400 12px ${FF}`, color: C.n500 }}>No columns yet.</div>
+                  ) : columns.map((c) => {
+                    const on = !hiddenCols.has(c.name);
+                    return (
+                      <div key={c.name} onClick={() => toggleCol(c.name)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 4, font: `500 13px ${FF}`, color: C.n700, cursor: 'pointer' }}>
+                        <span style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? C.p600 : C.n300}`, background: on ? C.p600 : C.n0, flex: 'none', position: 'relative' }}>
+                          {on && <span style={{ position: 'absolute', left: 4, top: 1, width: 4, height: 8, border: 'solid #fff', borderWidth: '0 2px 2px 0', transform: 'rotate(42deg)' }} />}
+                        </span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -237,7 +299,7 @@ export function SubmissionsPage() {
           </div>
         ) : (
           <Box background="neutral0" hasRadius style={{ border: `1px solid ${C.n150}`, overflow: 'hidden', boxShadow: '0 1px 4px rgba(33,33,52,.1)' }}>
-            <Table colCount={dataFields.length + 5} rowCount={visible.length}>
+            <Table colCount={shownColumns.length + 5} rowCount={visible.length}>
               <Thead>
                 <Tr>
                   <Th>
@@ -246,8 +308,8 @@ export function SubmissionsPage() {
                   <Th><Typography variant="sigma">ID</Typography></Th>
                   <Th><Typography variant="sigma">Status</Typography></Th>
                   <Th><Typography variant="sigma">Received</Typography></Th>
-                  {dataFields.map((f) => (
-                    <Th key={f.id}><Typography variant="sigma">{f.label}</Typography></Th>
+                  {shownColumns.map((c) => (
+                    <Th key={c.name}><Typography variant="sigma">{c.label}</Typography></Th>
                   ))}
                   <Th><Typography variant="sigma">Actions</Typography></Th>
                 </Tr>
@@ -261,13 +323,17 @@ export function SubmissionsPage() {
                     <Td><Typography textColor="neutral500">#{sub.id}</Typography></Td>
                     <Td><StatusBadge status={sub.status} /></Td>
                     <Td><Typography textColor="neutral600">{new Date(sub.createdAt).toLocaleString()}</Typography></Td>
-                    {dataFields.map((f) => (
-                      <Td key={f.id}>
-                        <Typography style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {String(sub.data?.[f.name] ?? '')}
-                        </Typography>
-                      </Td>
-                    ))}
+                    {shownColumns.map((c) => {
+                      const raw = sub.data?.[c.name];
+                      const val = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
+                      return (
+                        <Td key={c.name}>
+                          <Typography style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {val}
+                          </Typography>
+                        </Td>
+                      );
+                    })}
                     <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <button type="button" onClick={() => setSelectedId(sub.id)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, color: C.n500, cursor: 'pointer' }}>›</button>
                     </Td>
@@ -301,10 +367,6 @@ export function SubmissionsPage() {
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                 <div style={{ flex: 1, background: C.n0, border: `1px solid ${C.n150}`, borderRadius: 6, padding: '9px 12px' }}>
-                  <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>Status</div>
-                  <div style={{ marginTop: 6 }}><StatusBadge status={selected.status} /></div>
-                </div>
-                <div style={{ flex: 1, background: C.n0, border: `1px solid ${C.n150}`, borderRadius: 6, padding: '9px 12px' }}>
                   <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>Received</div>
                   <div style={{ font: `700 12px ${FF}`, color: C.n900, marginTop: 6 }}>{new Date(selected.createdAt).toLocaleString()}</div>
                 </div>
@@ -316,17 +378,27 @@ export function SubmissionsPage() {
 
               <div style={{ font: `600 12px ${FF}`, color: C.n700, marginBottom: 8 }}>Submitted data</div>
               <div style={{ border: `1px solid ${C.n200}`, borderRadius: 6, overflow: 'hidden' }}>
-                {dataFields.length === 0 ? (
-                  <div style={{ padding: '12px 16px', font: `400 12px ${FF}`, color: C.n500 }}>No data fields.</div>
-                ) : dataFields.map((f, i) => {
-                  const val = String(selected.data?.[f.name] ?? '');
-                  return (
-                    <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', columnGap: 16, padding: '10px 16px', background: i % 2 === 0 ? C.n0 : C.n100, alignItems: 'start' }}>
-                      <span style={{ font: `600 12px ${FF}`, color: C.n600, wordBreak: 'break-word' }}>{f.label}</span>
-                      <span style={{ font: `400 13px ${FF}`, color: val ? C.n800 : C.n400, lineHeight: 1.5, wordBreak: 'break-word' }}>{val || '—'}</span>
-                    </div>
-                  );
-                })}
+                {(() => {
+                  // Always render what was actually stored in `data` — never hide an
+                  // answer. Field defs (submit-time snapshot, else current form) only
+                  // supply nicer labels/order; unknown keys fall back to the raw key.
+                  const defs = selected.fields?.length ? selected.fields : dataFields;
+                  const labelByName = new Map(defs.map((f) => [f.name, f.label] as const));
+                  const orderByName = new Map(defs.map((f, i) => [f.name, f.order ?? i] as const));
+                  const entries = Object.entries(selected.data || {})
+                    .sort((a, b) => (orderByName.get(a[0]) ?? 999) - (orderByName.get(b[0]) ?? 999));
+                  return entries.length === 0 ? (
+                    <div style={{ padding: '12px 16px', font: `400 12px ${FF}`, color: C.n500 }}>No data.</div>
+                  ) : entries.map(([name, raw], i) => {
+                    const val = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
+                    return (
+                      <div key={name || i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', columnGap: 16, padding: '10px 16px', background: i % 2 === 0 ? C.n0 : C.n100, alignItems: 'baseline' }}>
+                        <span style={{ font: `600 12px ${FF}`, color: C.n600, wordBreak: 'break-word' }}>{labelByName.get(name) || name}</span>
+                        <span style={{ font: `400 13px ${FF}`, color: val ? C.n800 : C.n400, lineHeight: 1.5, wordBreak: 'break-word' }}>{val || '—'}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
 

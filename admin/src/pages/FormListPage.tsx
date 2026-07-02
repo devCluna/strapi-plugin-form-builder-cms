@@ -11,14 +11,13 @@ import {
   Tr,
   Th,
   Td,
-  Badge,
   IconButton,
   Dialog,
   Checkbox,
   Searchbar,
 } from '@strapi/design-system';
 import {
-  Pencil, Trash, Plus, Duplicate, Eye, File,
+  Pencil, Trash, Plus, Duplicate, Eye, ExternalLink, File,
   Mail, BulletList, Message, Calendar, Feather,
 } from '@strapi/icons';
 import { useFormsApi } from '../api';
@@ -236,7 +235,7 @@ export function FormListPage() {
               </Typography>
             </Box>
           ) : (
-            <Table colCount={7} rowCount={visibleForms.length}>
+            <Table colCount={6} rowCount={visibleForms.length}>
               <Thead>
                 <Tr>
                   <Th>
@@ -248,7 +247,6 @@ export function FormListPage() {
                   </Th>
                   <Th><Typography variant="sigma">Title</Typography></Th>
                   <Th><Typography variant="sigma">Slug</Typography></Th>
-                  <Th><Typography variant="sigma">Status</Typography></Th>
                   <Th><Typography variant="sigma">Submissions</Typography></Th>
                   <Th><Typography variant="sigma">Created</Typography></Th>
                   <Th><Typography variant="sigma">Actions</Typography></Th>
@@ -271,11 +269,6 @@ export function FormListPage() {
                         <Typography textColor="neutral600" style={{ fontFamily: 'monospace' }}>
                           {form.slug}
                         </Typography>
-                      </Td>
-                      <Td>
-                        <Badge active={!!form.publishedAt}>
-                          {form.publishedAt ? 'Published' : 'Draft'}
-                        </Badge>
                       </Td>
                       <Td>
                         {count > 0 ? (
@@ -308,11 +301,11 @@ export function FormListPage() {
                             label="View submissions"
                             onClick={() => navigate(`/plugins/${PLUGIN_ID}/submissions/${form.id}`)}
                           >
-                            <File />
+                            <Eye />
                           </IconButton>
                           {form.publishedAt && form.settings?.publicPage && (
                             <IconButton label="Open live form" onClick={() => openLive(form)}>
-                              <Eye />
+                              <ExternalLink />
                             </IconButton>
                           )}
                           <IconButton label="Duplicate" onClick={() => handleDuplicate(form.id)}>
