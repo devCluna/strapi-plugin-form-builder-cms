@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0-rc.2] - 2026-07-02
+
+### Fixed
+- Embed: reset `text-align` so the form no longer inherits the host page's centering.
+- Embed: set the form to `novalidate` so required/validation errors render the plugin's own messages (custom or default) instead of the browser's native bubble.
+
+### Changed
+- Field settings: "Required" now lives only on the Validation tab (removed the duplicate on General) and supports a custom error message.
+- Field settings: settings are now conditional per field type — Placeholder only where it applies (relabeled "Empty option text" for select; hidden for checkbox/radio/checkbox-group/date/time); validation rules limited to those valid for the type (email/url/number auto-validate by type, so those rules aren't re-offered; the Rules block hides for choice/date fields where only Required applies).
+
+---
+
 ## [1.0.0-rc.1] - 2026-07-02
 
 ### Changed
