@@ -30,6 +30,9 @@ export default {
       if (error.name === 'ValidationError') {
         ctx.status = 400;
         ctx.body = { success: false, errors: error.details };
+      } else if (error.name === 'RateLimitError') {
+        ctx.status = 429;
+        ctx.body = { success: false, message: error.message };
       } else if (error.name === 'NotFoundError') {
         return ctx.notFound('Form not found');
       } else {
@@ -68,14 +71,9 @@ export default {
 
   async export(ctx: any) {
     const { formId } = ctx.params;
-    const format = (ctx.query.format as string) || 'csv';
-    const data = await strapi.plugin(PLUGIN_ID).service('submission').export(Number(formId), format);
-    const ext = format === 'xlsx' ? 'xlsx' : 'csv';
-    const mime = format === 'xlsx'
-      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      : 'text/csv';
-    ctx.set('Content-Disposition', `attachment; filename=submissions.${ext}`);
-    ctx.set('Content-Type', mime);
+    const data = await strapi.plugin(PLUGIN_ID).service('submission').export(Number(formId), 'csv');
+    ctx.set('Content-Disposition', 'attachment; filename=submissions.csv');
+    ctx.set('Content-Type', 'text/csv; charset=utf-8');
     ctx.body = data;
   },
 

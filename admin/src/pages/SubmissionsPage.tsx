@@ -16,6 +16,7 @@ import {
   SingleSelect,
   SingleSelectOption,
   Dialog,
+  Checkbox,
 } from '@strapi/design-system';
 import { ArrowLeft, Trash, Eye } from '@strapi/icons';
 import { useFormsApi } from '../api';
@@ -41,6 +42,9 @@ export function SubmissionsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selected, setSelected] = useState<FormSubmission | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,10 +56,44 @@ export function SubmissionsPage() {
     setForm(formData);
     setSubmissions(subData?.results || subData || []);
     setStats(statsData);
+    setSelectedIds([]);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [formId, statusFilter]);
+
+  const allSelected = submissions.length > 0 && selectedIds.length === submissions.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
+
+  const toggleAll = () =>
+    setSelectedIds(allSelected ? [] : submissions.map((s) => s.id));
+
+  const toggleOne = (id: number) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  const handleBulkDelete = async () => {
+    await Promise.all(selectedIds.map((id) => api.deleteSubmission(id)));
+    setBulkDeleteOpen(false);
+    load();
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const csv = await api.exportSubmissions(Number(formId));
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `submissions-${form?.slug || formId}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const dataFields: FormField[] = (form?.fields || []).filter(
     (f) => !['heading', 'paragraph', 'divider'].includes(f.type)
@@ -109,8 +147,40 @@ export function SubmissionsPage() {
             <SingleSelectOption value="read">Read</SingleSelectOption>
             <SingleSelectOption value="archived">Archived</SingleSelectOption>
           </SingleSelect>
+          <Button
+            variant="secondary"
+            size="S"
+            onClick={handleExport}
+            loading={exporting}
+            disabled={submissions.length === 0}
+          >
+            Export CSV
+          </Button>
         </Flex>
       </Flex>
+
+      {selectedIds.length > 0 && (
+        <Flex
+          justifyContent="space-between"
+          alignItems="center"
+          padding={3}
+          marginBottom={4}
+          background="primary100"
+          hasRadius
+        >
+          <Typography variant="pi" fontWeight="semiBold">
+            {selectedIds.length} selected
+          </Typography>
+          <Button
+            variant="danger-light"
+            size="S"
+            startIcon={<Trash />}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            Delete selected
+          </Button>
+        </Flex>
+      )}
 
       {loading ? (
         <Typography>Loading...</Typography>
@@ -119,9 +189,16 @@ export function SubmissionsPage() {
           <Typography textColor="neutral600">No submissions yet.</Typography>
         </Box>
       ) : (
-        <Table colCount={dataFields.length + 4} rowCount={submissions.length}>
+        <Table colCount={dataFields.length + 5} rowCount={submissions.length}>
           <Thead>
             <Tr>
+              <Th>
+                <Checkbox
+                  aria-label="Select all"
+                  checked={someSelected ? 'indeterminate' : allSelected}
+                  onCheckedChange={toggleAll}
+                />
+              </Th>
               <Th><Typography variant="sigma">ID</Typography></Th>
               <Th><Typography variant="sigma">Status</Typography></Th>
               <Th><Typography variant="sigma">Date</Typography></Th>
@@ -134,6 +211,13 @@ export function SubmissionsPage() {
           <Tbody>
             {submissions.map((sub) => (
               <Tr key={sub.id}>
+                <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                  <Checkbox
+                    aria-label={`Select submission ${sub.id}`}
+                    checked={selectedIds.includes(sub.id)}
+                    onCheckedChange={() => toggleOne(sub.id)}
+                  />
+                </Td>
                 <Td><Typography>{sub.id}</Typography></Td>
                 <Td>
                   <Badge variant={statusColor[sub.status]}>
@@ -266,6 +350,26 @@ export function SubmissionsPage() {
               </Dialog.Cancel>
               <Dialog.Action>
                 <Button variant="danger" onClick={handleDelete}>Delete</Button>
+              </Dialog.Action>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Root>
+      )}
+
+      {/* Bulk delete confirm */}
+      {bulkDeleteOpen && (
+        <Dialog.Root open onOpenChange={() => setBulkDeleteOpen(false)}>
+          <Dialog.Content>
+            <Dialog.Header>Confirm delete</Dialog.Header>
+            <Dialog.Body>
+              <Typography>Delete {selectedIds.length} selected submission(s)? This cannot be undone.</Typography>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Dialog.Cancel>
+                <Button variant="tertiary">Cancel</Button>
+              </Dialog.Cancel>
+              <Dialog.Action>
+                <Button variant="danger" onClick={handleBulkDelete}>Delete {selectedIds.length}</Button>
               </Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>

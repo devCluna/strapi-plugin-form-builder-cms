@@ -29,16 +29,34 @@ export default ({ strapi }: { strapi: any }) => ({
       throw err;
     }
 
-    // Honeypot check
+    // Honeypot check — bot filled the hidden trap field, pretend success and drop it
     if (form.settings?.enableHoneypot && body._fc_hp) {
       return { success: true, successMessage: form.settings?.successMessage };
     }
+
+    // Rate limit per form + IP over the last hour
+    if (form.settings?.enableRateLimit && meta.ip) {
+      const max = Number(form.settings?.maxSubmissionsPerHour) || 60;
+      const since = new Date(Date.now() - 60 * 60 * 1000);
+      // ponytail: naive per-request count, fine at this scale; move to a store if throughput matters
+      const recent = await strapi.db.query(SUBMISSION_UID).count({
+        where: { form: form.id, ipAddress: meta.ip, createdAt: { $gt: since } },
+      });
+      if (recent >= max) {
+        const err: any = new Error('Too many submissions, please try again later');
+        err.name = 'RateLimitError';
+        throw err;
+      }
+    }
+
+    // strip honeypot before persisting so it never lands in stored data
+    const { _fc_hp, ...clean } = body;
 
     try {
       await strapi.db.query(SUBMISSION_UID).create({
         data: {
           form: form.id,
-          data: body,
+          data: clean,
           ipAddress: meta.ip,
           userAgent: meta.userAgent,
           status: 'new',
@@ -117,17 +135,18 @@ export default ({ strapi }: { strapi: any }) => ({
       ...fieldNames.map((name: string) => s.data?.[name] ?? ''),
     ]);
 
-    if (format === 'csv') {
-      const lines = [
-        headers.join(','),
-        ...rows.map((r: any[]) =>
-          r.map(String).map((v) => `"${v.replace(/"/g, '""')}"`).join(',')
-        ),
-      ];
-      return lines.join('\n');
-    }
-
-    return rows;
+    // ponytail: CSV only. Add xlsx with a real writer (exceljs) if someone actually needs it.
+    const csvCell = (v: any) => {
+      let s = String(v);
+      // neutralize spreadsheet formula injection (=, +, -, @ leading chars)
+      if (/^[=+\-@]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = [
+      headers.join(','),
+      ...rows.map((r: any[]) => r.map(csvCell).join(',')),
+    ];
+    return lines.join('\n');
   },
 
   async getStats(formId: number) {

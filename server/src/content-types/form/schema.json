@@ -23,8 +23,8 @@
     "settings": {
       "type": "json",
       "default": {
-        "submitButtonText": "Enviar",
-        "successMessage": "Formulario enviado correctamente",
+        "submitButtonText": "Submit",
+        "successMessage": "Form submitted successfully",
         "enableHoneypot": true,
         "enableRateLimit": true,
         "maxSubmissionsPerHour": 60,

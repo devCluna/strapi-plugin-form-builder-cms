@@ -14,6 +14,7 @@ import {
   Badge,
   IconButton,
   Dialog,
+  Checkbox,
 } from '@strapi/design-system';
 import { Pencil, Trash, Plus, Duplicate, Eye } from '@strapi/icons';
 import { useFormsApi } from '../api';
@@ -26,12 +27,15 @@ export function FormListPage() {
   const [forms, setForms] = useState<Form[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await api.getForms();
       setForms(Array.isArray(data) ? data : []);
+      setSelectedIds([]);
     } catch (e) {
       console.error(e);
     } finally {
@@ -41,10 +45,27 @@ export function FormListPage() {
 
   useEffect(() => { load(); }, []);
 
+  const allSelected = forms.length > 0 && selectedIds.length === forms.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
+
+  const toggleAll = () =>
+    setSelectedIds(allSelected ? [] : forms.map((f) => f.id));
+
+  const toggleOne = (id: number) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     await api.deleteForm(deleteTarget);
     setDeleteTarget(null);
+    load();
+  };
+
+  const handleBulkDelete = async () => {
+    await Promise.all(selectedIds.map((id) => api.deleteForm(id)));
+    setBulkDeleteOpen(false);
     load();
   };
 
@@ -62,6 +83,29 @@ export function FormListPage() {
         </Button>
       </Flex>
 
+      {selectedIds.length > 0 && (
+        <Flex
+          justifyContent="space-between"
+          alignItems="center"
+          padding={3}
+          marginBottom={4}
+          background="primary100"
+          hasRadius
+        >
+          <Typography variant="pi" fontWeight="semiBold">
+            {selectedIds.length} selected
+          </Typography>
+          <Button
+            variant="danger-light"
+            size="S"
+            startIcon={<Trash />}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            Delete selected
+          </Button>
+        </Flex>
+      )}
+
       {loading ? (
         <Typography>Loading...</Typography>
       ) : forms.length === 0 ? (
@@ -71,9 +115,16 @@ export function FormListPage() {
           </Typography>
         </Box>
       ) : (
-        <Table colCount={5} rowCount={forms.length}>
+        <Table colCount={6} rowCount={forms.length}>
           <Thead>
             <Tr>
+              <Th>
+                <Checkbox
+                  aria-label="Select all"
+                  checked={someSelected ? 'indeterminate' : allSelected}
+                  onCheckedChange={toggleAll}
+                />
+              </Th>
               <Th><Typography variant="sigma">Title</Typography></Th>
               <Th><Typography variant="sigma">Slug</Typography></Th>
               <Th><Typography variant="sigma">Status</Typography></Th>
@@ -84,6 +135,13 @@ export function FormListPage() {
           <Tbody>
             {forms.map((form) => (
               <Tr key={form.id}>
+                <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                  <Checkbox
+                    aria-label={`Select ${form.title}`}
+                    checked={selectedIds.includes(form.id)}
+                    onCheckedChange={() => toggleOne(form.id)}
+                  />
+                </Td>
                 <Td><Typography fontWeight="semiBold">{form.title}</Typography></Td>
                 <Td><Typography textColor="neutral600">{form.slug}</Typography></Td>
                 <Td>
@@ -140,6 +198,25 @@ export function FormListPage() {
               </Dialog.Cancel>
               <Dialog.Action>
                 <Button variant="danger" onClick={handleDelete}>Delete</Button>
+              </Dialog.Action>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Root>
+      )}
+
+      {bulkDeleteOpen && (
+        <Dialog.Root open onOpenChange={() => setBulkDeleteOpen(false)}>
+          <Dialog.Content>
+            <Dialog.Header>Confirm delete</Dialog.Header>
+            <Dialog.Body>
+              <Typography>Delete {selectedIds.length} selected form(s)? This also removes their submissions and cannot be undone.</Typography>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Dialog.Cancel>
+                <Button variant="tertiary">Cancel</Button>
+              </Dialog.Cancel>
+              <Dialog.Action>
+                <Button variant="danger" onClick={handleBulkDelete}>Delete {selectedIds.length}</Button>
               </Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>

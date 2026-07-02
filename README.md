@@ -73,7 +73,7 @@ The **Form Builder** entry will appear in the Strapi admin sidebar.
 
 1. Open **Form Builder** in the sidebar.
 2. Click **New form**, give it a title.
-3. Drag field types from the left palette onto the canvas.
+3. Click field types in the left palette to add them to the canvas, then drag to reorder.
 4. Click any field to open its settings panel (label, name, placeholder, required, width, validation rules).
 5. Click **Save draft** to persist without publishing, or **Publish** to make it live.
 

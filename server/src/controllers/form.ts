@@ -1,8 +1,17 @@
 const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function publicPageHtml(form: any): string {
-  const title = form.title || 'Form';
-  const description = form.description || '';
+  const title = escapeHtml(form.title || 'Form');
+  const description = escapeHtml(form.description || '');
   const formId = form.id;
 
   return `<!DOCTYPE html>
@@ -79,6 +88,18 @@ function embedScript(): string {
   function mount(el, form, base) {
     var formEl = document.createElement('form');
     formEl.className = 'sfb-form';
+
+    // honeypot: hidden field bots tend to fill; humans never see it
+    if (form.settings && form.settings.enableHoneypot) {
+      var hp = document.createElement('input');
+      hp.type = 'text';
+      hp.name = '_fc_hp';
+      hp.tabIndex = -1;
+      hp.autocomplete = 'off';
+      hp.setAttribute('aria-hidden', 'true');
+      hp.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;';
+      formEl.appendChild(hp);
+    }
 
     var grid = document.createElement('div');
     grid.className = 'sfb-grid';

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -34,10 +34,12 @@ const DEFAULT_SETTINGS: FormSettings = {
 };
 
 function createField(type: FieldType, order: number): FormField {
+  const id = uuid();
   return {
-    id: uuid(),
+    id,
     type,
-    name: `field_${Date.now()}`,
+    // unique per-field name derived from the uuid — Date.now() collided for fields added in the same ms
+    name: `${type}_${id.slice(0, 8)}`,
     label: type.charAt(0).toUpperCase() + type.slice(1),
     placeholder: '',
     helpText: '',
@@ -71,6 +73,11 @@ export function FormBuilderPage() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
 
+  // dirty tracking: compare live state against the last saved/loaded snapshot
+  const savedRef = useRef<string>('');
+  const snapshot = () => JSON.stringify({ title, description, fields, settings });
+  const markSaved = () => { savedRef.current = snapshot(); };
+
   useEffect(() => {
     if (!isNew && id) {
       api.getForm(Number(id)).then((form: Form) => {
@@ -81,9 +88,32 @@ export function FormBuilderPage() {
         setPublishedAt(form.publishedAt ?? null);
         setSlug(form.slug ?? null);
         setLoading(false);
+        savedRef.current = JSON.stringify({
+          title: form.title,
+          description: form.description || '',
+          fields: form.fields || [],
+          settings: { ...DEFAULT_SETTINGS, ...(form.settings || {}) },
+        });
       });
+    } else {
+      markSaved(); // fresh empty form is not dirty
     }
   }, [id]);
+
+  const dirty = snapshot() !== savedRef.current;
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  const goBack = () => {
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    navigate(`/plugins/${PLUGIN_ID}`);
+  };
 
   const addField = useCallback((type: FieldType) => {
     const newField = createField(type, fields.length);
@@ -112,10 +142,12 @@ export function FormBuilderPage() {
         const created = await api.createForm(payload);
         setPublishedAt(null);
         setSlug(created.slug ?? null);
+        markSaved();
         navigate(`/plugins/${PLUGIN_ID}/builder/${created.id}`, { replace: true });
       } else {
         const updated = await api.updateForm(Number(id), payload);
         setPublishedAt(updated.publishedAt ?? null);
+        markSaved();
       }
     } finally {
       setSaving(false);
@@ -130,10 +162,13 @@ export function FormBuilderPage() {
       if (isNew) {
         const created = await api.createForm(payload);
         setPublishedAt(created.publishedAt ?? now);
+        setSlug(created.slug ?? null);
+        markSaved();
         navigate(`/plugins/${PLUGIN_ID}/builder/${created.id}`, { replace: true });
       } else {
         const updated = await api.updateForm(Number(id), payload);
         setPublishedAt(updated.publishedAt ?? now);
+        markSaved();
       }
     } finally {
       setPublishing(false);
@@ -159,7 +194,7 @@ export function FormBuilderPage() {
             <Button
               variant="ghost"
               startIcon={<ArrowLeft />}
-              onClick={() => navigate(`/plugins/${PLUGIN_ID}`)}
+              onClick={goBack}
             >
               Back
             </Button>
