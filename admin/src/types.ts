@@ -79,6 +79,7 @@ export interface Form {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  submissionCount?: number;
 }
 
 export interface FormSubmission {

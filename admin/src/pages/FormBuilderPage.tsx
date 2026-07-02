@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -56,15 +56,18 @@ function createField(type: FieldType, order: number): FormField {
 export function FormBuilderPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const api = useFormsApi();
   const isNew = !id || id === 'new';
+  // seed a brand-new form from a template chosen on the list page (router state)
+  const seed = (location.state || {}) as { templateFields?: FormField[]; templateTitle?: string };
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [title, setTitle] = useState('New form');
+  const [title, setTitle] = useState(seed.templateTitle || 'New form');
   const [description, setDescription] = useState('');
-  const [fields, setFields] = useState<FormField[]>([]);
+  const [fields, setFields] = useState<FormField[]>(seed.templateFields || []);
   const [settings, setSettings] = useState<FormSettings>(DEFAULT_SETTINGS);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);

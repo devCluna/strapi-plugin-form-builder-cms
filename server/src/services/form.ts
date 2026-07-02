@@ -11,9 +11,17 @@ function generateSlug(title: string): string {
 
 export default ({ strapi }: { strapi: any }) => ({
   async find() {
-    return strapi.db.query(FORM_UID).findMany({
+    const forms = await strapi.db.query(FORM_UID).findMany({
       orderBy: { createdAt: 'desc' },
     });
+    // ponytail: one count query per form; fine at admin-list scale, revisit with a groupBy if forms grow large
+    const SUBMISSION_UID = `plugin::${PLUGIN_ID}.form-submission`;
+    return Promise.all(
+      forms.map(async (form: any) => ({
+        ...form,
+        submissionCount: await strapi.db.query(SUBMISSION_UID).count({ where: { form: form.id } }),
+      }))
+    );
   },
 
   async findOne(id: number) {
