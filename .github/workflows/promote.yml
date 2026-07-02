@@ -7,17 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: 'Promote the version currently on this dist-tag'
+        description: 'Promote the version currently on this dist-tag (alphas are intentionally excluded)'
         required: true
-        default: alpha
+        default: rc
         type: choice
         options:
-          - alpha
-          - beta
           - rc
-          - latest
+          - beta
       version:
-        description: 'Exact version override (optional, e.g. 1.0.0-alpha.4)'
+        description: 'Exact version override (optional, e.g. 1.0.0-rc.1)'
         required: false
         type: string
 
