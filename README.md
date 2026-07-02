@@ -12,13 +12,14 @@ A visual drag-and-drop form builder plugin for [Strapi 5](https://strapi.io). Cr
 ## Features
 
 - **Drag-and-drop builder** — reorder fields visually inside the Strapi admin.
+- **Starter templates** — begin from Contact, Newsletter, Feedback, Job application, Event RSVP, or a blank form.
 - **Rich field types** — text, email, number, phone, URL, password, date, time, textarea, select, radio, checkbox, checkbox-group, heading, paragraph, divider.
 - **Field validation** — required, minLength, maxLength, min value, max value, email, URL, regex pattern — all configurable per field with custom error messages.
-- **Draft / Publish** — save a draft without going live; publish when ready.
-- **Public page** — one toggle generates a hosted page at `/api/strapi-plugin-form-builder-cms/page/:slug`.
+- **Draft / Publish** — draft edits stay private; the public page and embed always serve the last **published** version, so saving a draft never affects the live form.
+- **Public page** — one toggle generates a hosted page at `/api/strapi-plugin-form-builder-cms/page/:slug` (available once the form is published).
 - **Embed script** — a single `<script>` tag renders the form on any external site with zero dependencies.
-- **Honeypot spam protection** — invisible field silently discards bot submissions.
-- **Submission inbox** — view, filter by status (new / read / archived), inspect and delete submissions from the admin.
+- **Spam & limits** — honeypot field plus optional per-IP hourly rate limiting.
+- **Submission inbox** — search, filter by status (new / read / archived), bulk mark-as-read / archive / delete, per-form column picker, a detail drawer with next/previous navigation, and CSV export.
 - **Form preview** — preview the rendered form inside the admin before publishing.
 
 ---
@@ -72,10 +73,10 @@ The **Form Builder** entry will appear in the Strapi admin sidebar.
 ### 1 — Create a form
 
 1. Open **Form Builder** in the sidebar.
-2. Click **New form**, give it a title.
+2. Click **Create form** and pick a starter template or a blank form.
 3. Click field types in the left palette to add them to the canvas, then drag to reorder.
-4. Click any field to open its settings panel (label, name, placeholder, required, width, validation rules).
-5. Click **Save draft** to persist without publishing, or **Publish** to make it live.
+4. Click any field to open its settings panel — **General** (label, name, placeholder, required, width) and **Validation** tabs.
+5. Click **Save draft** to persist without affecting the live form, or **Publish** to update what the public sees.
 
 ### 2 — Embed on your website
 
@@ -94,7 +95,7 @@ Paste both tags wherever you want the form to appear. The script is self-contain
 
 ### 3 — Public page (optional)
 
-Toggle **Public page** in the form settings. A shareable URL is generated:
+Toggle **Public page** in the form settings drawer and **publish** the form. A shareable URL is generated:
 
 ```
 https://your-strapi-domain.com/api/strapi-plugin-form-builder-cms/page/{slug}
@@ -102,9 +103,11 @@ https://your-strapi-domain.com/api/strapi-plugin-form-builder-cms/page/{slug}
 
 Share or link directly to this page — it renders the form in a clean, responsive layout served by Strapi itself.
 
+> The public page, embed and submit endpoint only serve **published** forms. An unpublished (draft) form returns `404`.
+
 ### 4 — View submissions
 
-Click **Submissions** on any form card from the list page. Filter by status, open a submission to see all field values, and update its status (new → read → archived) or delete it.
+Click **Submissions** on any form from the list page. Search, filter by status, and pick which columns to show. Open a submission for a detail drawer with next/previous navigation; mark as read, archive or delete — individually or in bulk. Export everything to **CSV**.
 
 ---
 
@@ -195,10 +198,13 @@ Each rule accepts an optional **custom error message**. The same rule type canno
 
 | Setting | Description |
 |---|---|
+| Description | Optional intro text shown above the form |
 | Submit button text | Label on the submit button |
 | Success message | Message shown after a successful submission |
+| Public page | Generates a hosted page URL for the form (served once published) |
 | Honeypot protection | Adds a hidden field to silently discard bot submissions |
-| Public page | Generates a hosted page URL for the form |
+| Rate limiting | Caps submissions per IP each hour (configurable max) |
+| Redirect URL | Where to send the visitor after a successful submit |
 
 ---
 
@@ -236,11 +242,12 @@ Pull requests are welcome. For major changes please open an issue first to discu
 
 ## Roadmap
 
+- [x] Export submissions as CSV
 - [ ] Email notifications on new submission
 - [ ] File upload field type
 - [ ] Multi-step / wizard forms
-- [ ] Export submissions as CSV
 - [ ] Webhook on submit
+- [ ] Version history / restore
 
 Have a feature request? [Open an issue](https://github.com/devCluna/strapi-plugin-form-builder-cms/issues).
 
