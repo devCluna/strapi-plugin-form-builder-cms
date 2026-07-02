@@ -9,7 +9,7 @@ updates:
       time: "09:00"
       timezone: "America/Guayaquil"
     open-pull-requests-limit: 10
-    target-branch: "development"
+    target-branch: "main"
     groups:
       strapi:
         patterns:
@@ -37,4 +37,4 @@ updates:
       time: "09:00"
       timezone: "America/Guayaquil"
     open-pull-requests-limit: 5
-    target-branch: "development"
+    target-branch: "main"
