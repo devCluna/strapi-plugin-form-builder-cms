@@ -33,8 +33,8 @@ describe('verifyCaptcha (fail-closed CAPTCHA check)', () => {
     expect(params.get('response')).toBe('tok');
   });
 
-  it('does not block on an unknown provider (returns true without a request)', async () => {
+  it('fails closed on an unknown provider (returns false without a request)', async () => {
     mockFetch(async () => { throw new Error('should not be called'); });
-    expect(await verifyCaptcha('nope', 'secret', 'token', '')).toBe(true);
+    expect(await verifyCaptcha('nope', 'secret', 'token', '')).toBe(false);
   });
 });

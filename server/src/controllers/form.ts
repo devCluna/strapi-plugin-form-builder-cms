@@ -517,7 +517,7 @@ export default {
     if (provider && provider !== 'none') {
       ctx.set('Content-Security-Policy', [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com",
+        "script-src 'self' https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com",
         "frame-src https://challenges.cloudflare.com https://www.google.com",
         "style-src 'self' 'unsafe-inline' https:",
         "img-src 'self' data: https:",

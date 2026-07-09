@@ -10,7 +10,7 @@ const CAPTCHA_ENDPOINTS: Record<string, string> = {
 // Server-side token check. Fails closed: any network/parse error rejects the submission.
 export async function verifyCaptcha(provider: string, secret: string, token: string, ip: string): Promise<boolean> {
   const url = CAPTCHA_ENDPOINTS[provider];
-  if (!url) return true; // unknown provider — don't block (shouldn't reach here)
+  if (!url) return false; // unknown provider — fail closed
   // trim: users often paste keys with stray leading/trailing whitespace
   const params = new URLSearchParams({ secret: (secret || '').trim(), response: (token || '').trim() });
   if (ip) params.append('remoteip', ip);
@@ -19,6 +19,7 @@ export async function verifyCaptcha(provider: string, secret: string, token: str
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
+      signal: AbortSignal.timeout(5000), // don't hang the submit if the provider stalls
     });
     const json: any = await res.json();
     return !!json.success;

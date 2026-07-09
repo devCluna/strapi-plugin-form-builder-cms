@@ -155,7 +155,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
         {!deco && !isHidden && tabBtn('validation', 'Validation')}
       </div>
 
-      {(tab === 'general' || deco) && isHidden && (
+      {isHidden && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
             A hidden tracking field. It never shows on the form but its value is stored with every submission — ideal for UTM parameters, referrers or campaign IDs.
@@ -210,7 +210,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
         </div>
       )}
 
-      {tab === 'validation' && !deco && (
+      {tab === 'validation' && !deco && !isHidden && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Required — flag + custom message */}
           <div style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
