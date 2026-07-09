@@ -237,7 +237,7 @@ function PreviewField({ field }: { field: FormField }) {
 
   if (field.type === 'divider') {
     return (
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div className={field.cssClass || undefined} style={{ gridColumn: '1 / -1' }}>
         <hr style={{ border: 'none', borderTop: TOKEN.border, margin: '4px 0' }} />
       </div>
     );
@@ -245,7 +245,7 @@ function PreviewField({ field }: { field: FormField }) {
 
   if (field.type === 'heading') {
     return (
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div className={field.cssClass || undefined} style={{ gridColumn: '1 / -1' }}>
         <p style={{ fontSize: 18, fontWeight: 700, color: TOKEN.text, margin: 0 }}>{field.label || 'Heading'}</p>
       </div>
     );
@@ -253,7 +253,7 @@ function PreviewField({ field }: { field: FormField }) {
 
   if (field.type === 'paragraph') {
     return (
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div className={field.cssClass || undefined} style={{ gridColumn: '1 / -1' }}>
         <p style={{ fontSize: 14, color: TOKEN.sub, margin: 0, lineHeight: 1.6 }}>{field.label || 'Paragraph text'}</p>
       </div>
     );
@@ -269,7 +269,7 @@ function PreviewField({ field }: { field: FormField }) {
     default:              content = <TextField field={field} />; break;
   }
 
-  return <div style={{ gridColumn: `span ${colSpan}` }}>{content}</div>;
+  return <div className={field.cssClass || undefined} style={{ gridColumn: `span ${colSpan}` }}>{content}</div>;
 }
 
 /* ── modal ──────────────────────────────────────────────────────────── */

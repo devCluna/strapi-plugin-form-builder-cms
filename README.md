@@ -13,12 +13,14 @@ A visual drag-and-drop form builder plugin for [Strapi 5](https://strapi.io). Cr
 
 - **Drag-and-drop builder** — reorder fields visually inside the Strapi admin.
 - **Starter templates** — begin from Contact, Newsletter, Feedback, Job application, Event RSVP, or a blank form.
-- **Rich field types** — text, email, number, phone, URL, password, date, time, textarea, select, radio, checkbox, checkbox-group, heading, paragraph, divider.
+- **Rich field types** — text, email, number, phone, URL, password, date, time, textarea, select, radio, checkbox, checkbox-group, hidden, heading, paragraph, divider.
 - **Field validation** — required, minLength, maxLength, min value, max value, email, URL, regex pattern — all configurable per field with custom error messages.
 - **Draft / Publish** — draft edits stay private; the public page and embed always serve the last **published** version, so saving a draft never affects the live form.
 - **Public page** — one toggle generates a hosted page at `/api/strapi-plugin-form-builder-cms/page/:slug` (available once the form is published).
 - **Embed script** — a single `<script>` tag renders the form on any external site with zero dependencies.
 - **Spam & limits** — honeypot field plus optional per-IP hourly rate limiting.
+- **CAPTCHA** — optional Cloudflare Turnstile or Google reCAPTCHA v2 per form, verified server-side (fail-closed). The secret key never reaches the browser.
+- **Hidden tracking fields** — capture UTM parameters, referrers or campaign IDs from the page URL into every submission.
 - **Submission inbox** — search, filter by status (new / read / archived), bulk mark-as-read / archive / delete, per-form column picker, a detail drawer with next/previous navigation, and CSV export.
 - **Form preview** — preview the rendered form inside the admin before publishing.
 
@@ -152,6 +154,12 @@ These routes require no authentication and are safe to call from the browser.
 }
 ```
 
+### Submit response — CAPTCHA failure (`400`) or rate limit (`429`)
+
+```json
+{ "success": false, "message": "Captcha verification failed. Please try again." }
+```
+
 ---
 
 ## Field types
@@ -171,6 +179,7 @@ These routes require no authentication and are safe to call from the browser.
 | `radio` | Radio group — configure options in the settings panel |
 | `checkbox` | Single checkbox (agree / consent) |
 | `checkbox-group` | Multiple checkboxes — configure options in the settings panel |
+| `hidden` | Invisible tracking field — prefilled from a URL query parameter (e.g. `utm_source`) or a default value, then stored with the submission |
 | `heading` | Non-input heading label |
 | `paragraph` | Non-input descriptive text |
 | `divider` | Horizontal rule to separate sections |
@@ -204,7 +213,66 @@ Each rule accepts an optional **custom error message**. The same rule type canno
 | Public page | Generates a hosted page URL for the form (served once published) |
 | Honeypot protection | Adds a hidden field to silently discard bot submissions |
 | Rate limiting | Caps submissions per IP each hour (configurable max) |
+| CAPTCHA | None, Cloudflare Turnstile or Google reCAPTCHA v2 — with a **Test secret key** button to validate credentials before publishing |
 | Redirect URL | Where to send the visitor after a successful submit |
+
+---
+
+## CAPTCHA
+
+Protect a form with a human-verification challenge. In the form settings drawer, under **Spam & limits → CAPTCHA**, pick a provider and paste your keys:
+
+| Provider | Where to get keys |
+|---|---|
+| **Cloudflare Turnstile** | [Turnstile dashboard](https://dash.cloudflare.com/?to=/:account/turnstile) |
+| **Google reCAPTCHA v2** | [reCAPTCHA admin console](https://www.google.com/recaptcha/admin) |
+
+- The **site key** is public — it is sent to the browser to render the widget.
+- The **secret key** is private — it is stored server-side and **never** exposed in the public schema. Use the **Test secret key** button to validate it against the provider before publishing.
+- Submissions are verified server-side and **fail closed**: an invalid or missing token is rejected with `400`, even if the client is bypassed.
+- If the widget can't load (e.g. an invalid site key), the visitor sees a clear message instead of a silent failure.
+
+> The public page relaxes its Content-Security-Policy just enough to load the chosen provider's script and iframe — only when a CAPTCHA is configured.
+
+## Hidden tracking fields
+
+Add a **hidden** field to capture campaign data into every submission without showing anything to the visitor:
+
+- **Name** — the key stored with the submission (e.g. `utm_source`).
+- **Prefill from URL parameter** — a query-string parameter to read from the page URL. If the form is opened at `?utm_source=google`, that value is captured automatically.
+- **Default value** — used when the URL parameter is absent.
+
+The captured value is stored with the submission and included in the CSV export.
+
+---
+
+## Styling the embedded form
+
+The embedded form renders in the host page's DOM (no shadow DOM), so you can restyle it from your own site.
+
+**CSS variables** (the recommended, stable API):
+
+```css
+#sfb-form-1 {           /* the container div, or any ancestor */
+  --sfb-accent: #e11d48;
+  --sfb-radius: 12px;
+}
+```
+
+**Or target the classes directly** — `.sfb-form`, `.sfb-field`, `.sfb-label`, `.sfb-input`, `.sfb-btn`, `.sfb-help`, `.sfb-error`, `.sfb-success`. The plugin's rules use single-class specificity; to reliably win, scope your selector to the form container:
+
+```css
+#sfb-form-1 .sfb-input { border-width: 2px; }
+```
+
+**Per-field class** — give any field a **CSS class** in its settings panel (e.g. `newsletter-email`). It's added to that field's wrapper, so you can style one field from your own stylesheet:
+
+```css
+.newsletter-email input      { border-color: #e11d48; }
+.newsletter-email .sfb-label { font-weight: 700; }
+```
+
+The class sits on the field's wrapper (not the `<input>`), so a descendant selector like `.newsletter-email input` naturally out-specifies the plugin's own rules — no `!important` needed.
 
 ---
 
@@ -227,6 +295,14 @@ In your local Strapi project:
 npm run develop
 ```
 
+Run the test suite (Vitest) and type-checks:
+
+```bash
+npm test              # unit tests
+npm run test:ts:back  # type-check the server
+npm run test:ts:front # type-check the admin
+```
+
 ---
 
 ## Contributing
@@ -243,7 +319,9 @@ Pull requests are welcome. For major changes please open an issue first to discu
 ## Roadmap
 
 - [x] Export submissions as CSV
-- [ ] CAPTCHA / spam protection (Cloudflare Turnstile · reCAPTCHA)
+- [x] CAPTCHA / spam protection (Cloudflare Turnstile · reCAPTCHA v2)
+- [x] Hidden tracking fields (UTM / referrer capture)
+- [ ] Theming / style presets
 - [ ] Email notifications on new submission
 - [ ] File upload field type
 - [ ] Multi-step / wizard forms

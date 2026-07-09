@@ -239,6 +239,7 @@ function embedScript(): string {
     if (field.type === 'divider') {
       var hr = document.createElement('hr');
       hr.className = 'sfb-divider';
+      if (field.cssClass) hr.className += ' ' + field.cssClass;
       hr.style.gridColumn = '1 / -1';
       return hr;
     }
@@ -246,6 +247,7 @@ function embedScript(): string {
     if (field.type === 'heading') {
       var h = document.createElement('p');
       h.className = 'sfb-heading';
+      if (field.cssClass) h.className += ' ' + field.cssClass;
       h.style.gridColumn = '1 / -1';
       h.textContent = field.label || '';
       return h;
@@ -254,6 +256,7 @@ function embedScript(): string {
     if (field.type === 'paragraph') {
       var p = document.createElement('p');
       p.className = 'sfb-paragraph';
+      if (field.cssClass) p.className += ' ' + field.cssClass;
       p.style.gridColumn = '1 / -1';
       p.textContent = field.label || '';
       return p;
@@ -261,6 +264,7 @@ function embedScript(): string {
 
     var wrapper = document.createElement('div');
     wrapper.className = 'sfb-field';
+    if (field.cssClass) wrapper.className += ' ' + field.cssClass;
     wrapper.setAttribute('data-field-name', field.name);
     if (field.width !== 'half') wrapper.style.gridColumn = '1 / -1';
 
