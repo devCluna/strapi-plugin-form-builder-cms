@@ -2,7 +2,60 @@ const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 const SUBMISSION_UID = `plugin::${PLUGIN_ID}.form-submission`;
 const FORM_UID = `plugin::${PLUGIN_ID}.form`;
 
+const CAPTCHA_ENDPOINTS: Record<string, string> = {
+  turnstile: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  recaptcha: 'https://www.google.com/recaptcha/api/siteverify',
+};
+
+// Server-side token check. Fails closed: any network/parse error rejects the submission.
+export async function verifyCaptcha(provider: string, secret: string, token: string, ip: string): Promise<boolean> {
+  const url = CAPTCHA_ENDPOINTS[provider];
+  if (!url) return false; // unknown provider — fail closed
+  // trim: users often paste keys with stray leading/trailing whitespace
+  const params = new URLSearchParams({ secret: (secret || '').trim(), response: (token || '').trim() });
+  if (ip) params.append('remoteip', ip);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+      signal: AbortSignal.timeout(5000), // don't hang the submit if the provider stalls
+    });
+    const json: any = await res.json();
+    return !!json.success;
+  } catch {
+    return false;
+  }
+}
+
 export default ({ strapi }: { strapi: any }) => ({
+  // Validate a CAPTCHA secret key against the provider (called from the admin settings
+  // "Test" button). A dummy token is sent: a valid secret comes back with an
+  // "invalid-input-response" error (secret OK, token bad); an invalid secret returns
+  // "invalid-input-secret". This lets us catch wrong secret keys before publishing.
+  async testCaptchaSecret(provider: string, secret: string): Promise<{ ok: boolean; reason?: string }> {
+    const url = CAPTCHA_ENDPOINTS[provider];
+    if (!url) return { ok: false, reason: 'Unknown provider' };
+    if (!secret || !secret.trim()) return { ok: false, reason: 'Secret key is empty' };
+    const params = new URLSearchParams({ secret: secret.trim(), response: 'test-token' });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+        signal: AbortSignal.timeout(5000),
+      });
+      const json: any = await res.json();
+      const codes: string[] = json['error-codes'] || [];
+      if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret')) {
+        return { ok: false, reason: 'Secret key is invalid' };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: 'Could not reach the CAPTCHA provider' };
+    }
+  },
+
   async submit(
     slug: string,
     body: Record<string, any>,
@@ -39,6 +92,17 @@ export default ({ strapi }: { strapi: any }) => ({
       return { success: true, successMessage: live.settings?.successMessage };
     }
 
+    // CAPTCHA — verify the challenge token against the provider before accepting
+    const captcha = live.settings?.captcha;
+    if (captcha && captcha.provider && captcha.provider !== 'none' && captcha.secretKey) {
+      const ok = await verifyCaptcha(captcha.provider, captcha.secretKey, body._fc_captcha, meta.ip);
+      if (!ok) {
+        const err: any = new Error('Captcha verification failed. Please try again.');
+        err.name = 'CaptchaError';
+        throw err;
+      }
+    }
+
     // Rate limit per form + IP over the last hour
     if (live.settings?.enableRateLimit && meta.ip) {
       const max = Number(live.settings?.maxSubmissionsPerHour) || 60;
@@ -54,8 +118,8 @@ export default ({ strapi }: { strapi: any }) => ({
       }
     }
 
-    // strip honeypot before persisting so it never lands in stored data
-    const { _fc_hp, ...clean } = body;
+    // strip honeypot + captcha token before persisting so they never land in stored data
+    const { _fc_hp, _fc_captcha, ...clean } = body;
 
     // Freeze the field schema used at submit time so the record stays accurate
     // even if the form's fields are later added, removed or renamed.

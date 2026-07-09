@@ -31,7 +31,8 @@
         "maxSubmissionsPerHour": 60,
         "notificationEmails": [],
         "redirectUrl": "",
-        "customCss": ""
+        "customCss": "",
+        "captcha": { "provider": "none", "siteKey": "", "secretKey": "" }
       }
     },
     "submissions": {

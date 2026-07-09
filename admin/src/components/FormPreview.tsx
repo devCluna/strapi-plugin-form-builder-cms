@@ -308,7 +308,7 @@ export function FormPreview({ title, description, fields, settings, open, onClos
         </div>
 
         {/* body */}
-        <div style={{ background: '#f5f5f9', overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: 24 }}>
+        <div style={{ background: '#f5f5f9', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 24 }}>
           <div style={{ width: '100%', background: '#fff', border: '1px solid #eaeaef', borderRadius: 12, padding: '32px 32px 28px' }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: TOKEN.text, margin: '0 0 8px' }}>{title}</h1>
             {description && <p style={{ fontSize: 14, color: TOKEN.sub, margin: '0 0 22px', lineHeight: 1.55 }}>{description}</p>}

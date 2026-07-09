@@ -30,6 +30,9 @@ export default {
       if (error.name === 'ValidationError') {
         ctx.status = 400;
         ctx.body = { success: false, errors: error.details };
+      } else if (error.name === 'CaptchaError') {
+        ctx.status = 400;
+        ctx.body = { success: false, message: error.message };
       } else if (error.name === 'RateLimitError') {
         ctx.status = 429;
         ctx.body = { success: false, message: error.message };
@@ -41,6 +44,12 @@ export default {
         ctx.body = { success: false, message: error?.message || 'Internal server error' };
       }
     }
+  },
+
+  async testCaptcha(ctx: any) {
+    const { provider, secretKey } = ctx.request.body || {};
+    const result = await strapi.plugin(PLUGIN_ID).service('submission').testCaptchaSecret(provider, secretKey);
+    ctx.body = result;
   },
 
   async find(ctx: any) {

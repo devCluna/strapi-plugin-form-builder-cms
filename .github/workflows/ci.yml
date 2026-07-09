@@ -29,6 +29,9 @@ jobs:
       - name: Type check (admin)
         run: npm run test:ts:front
 
+      - name: Run tests
+        run: npm test
+
       - name: Build
         run: npm run build
 

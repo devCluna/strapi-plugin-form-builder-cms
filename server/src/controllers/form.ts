@@ -92,6 +92,9 @@ function embedScript(): string {
     // the browser's native required bubble
     formEl.noValidate = true;
 
+    var captchaCfg = (form.settings && form.settings.captcha) || null;
+    var captchaOn = !!(captchaCfg && captchaCfg.provider && captchaCfg.provider !== 'none' && captchaCfg.siteKey);
+
     // honeypot: hidden field bots tend to fill; humans never see it
     if (form.settings && form.settings.enableHoneypot) {
       var hp = document.createElement('input');
@@ -111,6 +114,22 @@ function embedScript(): string {
       if (node) grid.appendChild(node);
     });
     formEl.appendChild(grid);
+
+    // hidden tracking fields: value comes from a URL query param (e.g. ?utm_source=…)
+    // falling back to a configured default. Never visible; submitted + stored like any field.
+    var params = new URLSearchParams(window.location.search);
+    (form.fields || []).forEach(function (field) {
+      if (field.type !== 'hidden') return;
+      var hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = field.name;
+      var val = field.defaultValue != null ? String(field.defaultValue) : '';
+      if (field.queryParam && params.get(field.queryParam) !== null) val = params.get(field.queryParam);
+      hidden.value = val;
+      formEl.appendChild(hidden);
+    });
+
+    if (captchaOn) mountCaptcha(formEl, captchaCfg);
 
     var btn = document.createElement('button');
     btn.type = 'submit';
@@ -157,6 +176,24 @@ function embedScript(): string {
         }
       });
 
+      // normalize the provider's token field to a single key the server expects
+      if (captchaOn) {
+        data._fc_captcha = data['cf-turnstile-response'] || data['g-recaptcha-response'] || '';
+        delete data['cf-turnstile-response'];
+        delete data['g-recaptcha-response'];
+
+        // client-side guard: don't even hit the server without a challenge token
+        if (!data._fc_captcha) {
+          btn.disabled = false;
+          btn.textContent = submitText;
+          var ce = document.createElement('p');
+          ce.className = 'sfb-error';
+          ce.textContent = 'Please complete the verification challenge.';
+          formEl.insertBefore(ce, btn);
+          return;
+        }
+      }
+
       fetch(base + '/api/' + PLUGIN + '/forms/' + form.slug + '/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,6 +215,9 @@ function embedScript(): string {
         .catch(function (body) {
           btn.disabled = false;
           btn.textContent = submitText;
+          // captcha tokens are single-use — reset the widget so the user can retry
+          if (captchaOn && captchaCfg.provider === 'turnstile' && window.turnstile) window.turnstile.reset();
+          if (captchaOn && captchaCfg.provider === 'recaptcha' && window.grecaptcha) window.grecaptcha.reset();
           if (body && body.errors && Object.keys(body.errors).length > 0) {
             showFieldErrors(body.errors);
           } else {
@@ -330,6 +370,56 @@ function embedScript(): string {
     return inp2;
   }
 
+  function loadScript(src, id, cb) {
+    if (document.getElementById(id)) { cb && cb(); return; }
+    var s = document.createElement('script');
+    s.id = id; s.src = src; s.async = true; s.defer = true;
+    s.onload = function () { cb && cb(); };
+    document.head.appendChild(s);
+  }
+
+  // poll until the provider's global is ready, then run cb (widgets mount dynamically)
+  function whenReady(check, cb) {
+    if (check()) { cb(); return; }
+    var t = setInterval(function () { if (check()) { clearInterval(t); cb(); } }, 50);
+  }
+
+  function mountCaptcha(formEl, cfg) {
+    var box = document.createElement('div');
+    box.className = 'sfb-captcha';
+    box.style.margin = '4px 0 16px';
+    formEl.appendChild(box);
+
+    var failed = false;
+    function fail() {
+      if (failed) return;
+      failed = true;
+      box.innerHTML = '';
+      var m = document.createElement('p');
+      m.className = 'sfb-error';
+      m.textContent = 'Verification could not load. Please contact the site owner.';
+      box.appendChild(m);
+    }
+    // fallback: an invalid site key renders nothing and fires no error — flag it after a grace period
+    function guard() { setTimeout(function () { if (!box.querySelector('iframe')) fail(); }, 5000); }
+
+    if (cfg.provider === 'turnstile') {
+      loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', 'sfb-turnstile', function () {
+        whenReady(function () { return window.turnstile; }, function () {
+          try { window.turnstile.render(box, { sitekey: cfg.siteKey, 'error-callback': fail }); guard(); }
+          catch (e) { fail(); }
+        });
+      });
+    } else if (cfg.provider === 'recaptcha') {
+      loadScript('https://www.google.com/recaptcha/api.js?render=explicit', 'sfb-recaptcha', function () {
+        whenReady(function () { return window.grecaptcha && window.grecaptcha.render; }, function () {
+          try { window.grecaptcha.render(box, { sitekey: cfg.siteKey, 'error-callback': fail }); guard(); }
+          catch (e) { fail(); }
+        });
+      });
+    }
+  }
+
   function injectStyles() {
     if (document.getElementById('sfb-css')) return;
     var s = document.createElement('style');
@@ -439,6 +529,23 @@ export default {
     if (!form.settings?.publicPage) return ctx.notFound('This form does not have a public page enabled');
 
     ctx.set('Content-Type', 'text/html; charset=utf-8');
+
+    // Strapi's global security middleware sets a strict CSP (script-src 'self') that would
+    // block the CAPTCHA provider's script + iframe. Relax it just for this page when a
+    // provider is configured — overrides the header set upstream by helmet.
+    const provider = form.settings?.captcha?.provider;
+    if (provider && provider !== 'none') {
+      ctx.set('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com",
+        "frame-src https://challenges.cloudflare.com https://www.google.com",
+        "style-src 'self' 'unsafe-inline' https:",
+        "img-src 'self' data: https:",
+        "connect-src 'self' https:",
+        "font-src 'self' https: data:",
+      ].join(';'));
+    }
+
     ctx.body = publicPageHtml(form);
   },
 };

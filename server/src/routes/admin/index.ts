@@ -7,6 +7,7 @@ export default {
     { method: 'PUT',    path: '/forms/:id',                     handler: 'form.update' },
     { method: 'DELETE', path: '/forms/:id',                     handler: 'form.delete' },
     { method: 'POST',   path: '/forms/:id/duplicate',           handler: 'form.duplicate' },
+    { method: 'POST',   path: '/captcha/test',                  handler: 'submission.testCaptcha' },
     { method: 'GET',    path: '/submissions/:formId',           handler: 'submission.find' },
     { method: 'GET',    path: '/submissions/entry/:id',         handler: 'submission.findOne' },
     { method: 'PUT',    path: '/submissions/:id/status',        handler: 'submission.updateStatus' },

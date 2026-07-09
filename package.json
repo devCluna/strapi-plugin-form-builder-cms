@@ -58,6 +58,8 @@
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:ts:front": "npx tsc -p admin/tsconfig.json --noEmit",
     "test:ts:back": "npx tsc -p server/tsconfig.json --noEmit"
   },
@@ -82,7 +84,9 @@
     "react-intl": "^6.8.9",
     "react-router-dom": "^6.30.3",
     "styled-components": "^6.3.12",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10",
+    "zod": "^3.25.67"
   },
   "peerDependencies": {
     "@strapi/design-system": "^2.0.0-rc.30",

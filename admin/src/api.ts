@@ -35,6 +35,11 @@ export function useFormsApi() {
       return data;
     },
 
+    async testCaptcha(provider: string, secretKey: string): Promise<{ ok: boolean; reason?: string }> {
+      const { data } = await post(`${BASE}/captcha/test`, { provider, secretKey });
+      return data;
+    },
+
     async getSubmissions(formId: number, query: Record<string, any> = {}) {
       const params = new URLSearchParams(query as any).toString();
       const { data } = await get(`${BASE}/submissions/${formId}${params ? `?${params}` : ''}`);
