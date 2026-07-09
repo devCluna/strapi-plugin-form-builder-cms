@@ -98,6 +98,7 @@ function Seg({ value, onChange }: { value: 'full' | 'half'; onChange: (v: 'full'
 export function FieldSettingsPanel({ field, onChange }: Props) {
   ensureStyle();
   const deco = isDecorative(field.type);
+  const isHidden = field.type === 'hidden';
   const [tab, setTab] = useState<'general' | 'validation'>('general');
   const update = (patch: Partial<FormField>) => onChange({ ...field, ...patch });
 
@@ -151,10 +152,21 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
 
       <div style={{ display: 'flex', gap: 2, padding: '12px 18px 0', borderBottom: `1px solid ${C.n150}` }}>
         {tabBtn('general', 'General')}
-        {!deco && tabBtn('validation', 'Validation')}
+        {!deco && !isHidden && tabBtn('validation', 'Validation')}
       </div>
 
-      {(tab === 'general' || deco) && (
+      {(tab === 'general' || deco) && isHidden && (
+        <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
+            A hidden tracking field. It never shows on the form but its value is stored with every submission — ideal for UTM parameters, referrers or campaign IDs.
+          </div>
+          <TextField label="Name (technical)" value={field.name} onChange={(v) => update({ name: v })} mono hint="Key stored with each submission (e.g. utm_source)." />
+          <TextField label="Prefill from URL parameter" value={field.queryParam || ''} onChange={(v) => update({ queryParam: v })} mono placeholder="utm_source" hint="If the form URL has ?utm_source=… its value is captured automatically." />
+          <TextField label="Default value" value={String(field.defaultValue ?? '')} onChange={(v) => update({ defaultValue: v })} hint="Used when the URL parameter above is absent." />
+        </div>
+      )}
+
+      {(tab === 'general' || deco) && !isHidden && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <TextField label={deco ? (field.type === 'divider' ? 'Label (internal)' : 'Text') : 'Label'} value={field.label} onChange={(v) => update({ label: v })} />
 
@@ -240,6 +252,11 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                     </div>
                     {hasValue && (
                       <input className="sfb-inp" placeholder={rule.type === 'pattern' ? '^[a-z0-9]+$' : 'Value'} value={String(rule.value ?? '')} onChange={(e) => updateValidation(i, { value: e.target.value })} style={{ ...inpStyle, ...(rule.type === 'pattern' ? { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 } : {}) }} />
+                    )}
+                    {rule.type === 'pattern' && (
+                      <a href="https://regex101.com/" target="_blank" rel="noopener noreferrer" style={{ font: `500 11px ${FF}`, color: C.p600, textDecoration: 'none' }}>
+                        Test &amp; learn regex ↗
+                      </a>
                     )}
                     <input className="sfb-inp" placeholder="Custom error message (optional)" value={rule.message || ''} onChange={(e) => updateValidation(i, { message: e.target.value })} style={inpStyle} />
                   </div>

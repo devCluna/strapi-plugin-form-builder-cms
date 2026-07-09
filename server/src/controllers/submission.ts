@@ -30,6 +30,9 @@ export default {
       if (error.name === 'ValidationError') {
         ctx.status = 400;
         ctx.body = { success: false, errors: error.details };
+      } else if (error.name === 'CaptchaError') {
+        ctx.status = 400;
+        ctx.body = { success: false, message: error.message };
       } else if (error.name === 'RateLimitError') {
         ctx.status = 429;
         ctx.body = { success: false, message: error.message };

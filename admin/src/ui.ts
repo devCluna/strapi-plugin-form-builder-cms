@@ -35,6 +35,7 @@ export const FIELD_CATEGORIES: { cat: string; items: FieldMeta[] }[] = [
     { type: 'url', name: 'URL', cat: 'Basic' },
     { type: 'password', name: 'Password', cat: 'Basic' },
     { type: 'textarea', name: 'Textarea', cat: 'Basic' },
+    { type: 'hidden', name: 'Hidden', cat: 'Basic' },
   ]},
   { cat: 'Choice', items: [
     { type: 'select', name: 'Select', cat: 'Choice' },
@@ -70,7 +71,7 @@ const ICON_COMPONENTS: Partial<Record<FieldType, React.ComponentType<any>>> = {
   'checkbox-group': ListPlus, date: Calendar, time: Clock,
 };
 const GLYPHS: Partial<Record<FieldType, string>> = {
-  text: 'T', radio: '◉', heading: 'H', paragraph: '¶', divider: '—',
+  text: 'T', radio: '◉', heading: 'H', paragraph: '¶', divider: '—', hidden: '⊘',
 };
 
 export function FieldIcon({ type, size = 16 }: { type: FieldType; size?: number }) {

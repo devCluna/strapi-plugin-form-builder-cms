@@ -36,6 +36,7 @@ export interface FormField {
   placeholder?: string;
   helpText?: string;
   defaultValue?: any;
+  queryParam?: string;
   required: boolean;
   order: number;
   width: 'full' | 'half';
@@ -66,6 +67,11 @@ export interface FormSettings {
   redirectUrl: string;
   customCss: string;
   publicPage: boolean;
+  captcha?: {
+    provider: 'none' | 'turnstile' | 'recaptcha';
+    siteKey: string;
+    secretKey: string;
+  };
 }
 
 export interface Form {

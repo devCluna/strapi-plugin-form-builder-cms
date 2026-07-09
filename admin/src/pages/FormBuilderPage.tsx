@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: FormSettings = {
   redirectUrl: '',
   customCss: '',
   publicPage: false,
+  captcha: { provider: 'none', siteKey: '', secretKey: '' },
 };
 
 // Order-insensitive stringify so key ordering in stored JSON doesn't create false diffs.
@@ -95,8 +96,19 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
   // edits stay in a local buffer — they only reach the form on "Save settings"
   const [description, setDescription] = useState(initialDescription);
   const [settings, setSettings] = useState<FormSettings>(initialSettings);
+  const [captchaErr, setCaptchaErr] = useState('');
   const patch = (p: Partial<FormSettings>) => setSettings((s) => ({ ...s, ...p }));
   const onCancel = onClose;
+
+  const handleSave = () => {
+    const cap = settings.captcha;
+    if (cap && cap.provider !== 'none' && (!cap.siteKey?.trim() || !cap.secretKey?.trim())) {
+      setCaptchaErr('Enter both the site key and secret key, or set CAPTCHA to None.');
+      return;
+    }
+    setCaptchaErr('');
+    onSave(description, settings);
+  };
   const url = slug ? `${window.location.origin}/api/${PLUGIN_ID}/page/${slug}` : '';
   const live = !!publishedAt;
 
@@ -159,6 +171,33 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
                 <input value={String(settings.maxSubmissionsPerHour ?? '')} onChange={(e) => patch({ maxSubmissionsPerHour: Number(e.target.value.replace(/[^0-9]/g, '')) || 0 })} style={{ ...dInp, width: 120 }} />
               </div>
             )}
+
+            <div style={{ marginTop: 16 }}>
+              <label style={dLbl}>CAPTCHA</label>
+              <select
+                value={settings.captcha?.provider || 'none'}
+                onChange={(e) => { setCaptchaErr(''); patch({ captcha: { provider: e.target.value as any, siteKey: '', secretKey: '' } }); }}
+                style={{ ...dInp, cursor: 'pointer' }}
+              >
+                <option value="none">None</option>
+                <option value="turnstile">Cloudflare Turnstile</option>
+                <option value="recaptcha">Google reCAPTCHA v2</option>
+              </select>
+              <div style={dHint}>Human-verification challenge required before a submission is accepted.</div>
+            </div>
+            {settings.captcha && settings.captcha.provider !== 'none' && (
+              <>
+                <div style={{ marginTop: 12 }}>
+                  <label style={dLbl}>Site key</label>
+                  <input value={settings.captcha.siteKey} onChange={(e) => patch({ captcha: { ...settings.captcha!, siteKey: e.target.value } })} placeholder="Public — sent to the browser" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <label style={dLbl}>Secret key</label>
+                  <input type="password" value={settings.captcha.secretKey} onChange={(e) => patch({ captcha: { ...settings.captcha!, secretKey: e.target.value } })} placeholder="Private — kept server-side, never exposed" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                </div>
+                {captchaErr && <div style={{ marginTop: 10, font: `500 12px ${FF}`, color: C.dng600 }}>{captchaErr}</div>}
+              </>
+            )}
           </div>
 
           <div style={{ padding: '20px 0' }}>
@@ -170,7 +209,7 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
 
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.n150}`, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <HeaderBtn variant="ghost" onClick={onCancel}>Cancel</HeaderBtn>
-          <HeaderBtn variant="pri" onClick={() => onSave(description, settings)}>Save settings</HeaderBtn>
+          <HeaderBtn variant="pri" onClick={handleSave}>Save settings</HeaderBtn>
         </div>
       </div>
     </>

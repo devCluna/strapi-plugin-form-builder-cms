@@ -100,10 +100,15 @@ export default ({ strapi }: { strapi: any }) => ({
   },
 });
 
-function publicSchemaFrom(form: any) {
+export function publicSchemaFrom(form: any) {
   if (!form || !form.publishedAt) return null;
   // Legacy fallback: forms published before publishedData existed serve their current copy.
   const p = form.publishedData || snapshotOf(form);
+  const settings = p.settings || {};
+  // Never leak the CAPTCHA secret key to the browser — strip it, keep the public site key.
+  const safeSettings = settings.captcha
+    ? { ...settings, captcha: { provider: settings.captcha.provider, siteKey: settings.captcha.siteKey } }
+    : settings;
   return {
     data: {
       id: form.id,
@@ -112,7 +117,7 @@ function publicSchemaFrom(form: any) {
       description: p.description,
       fields: p.fields || [],
       conditionalLogic: p.conditionalLogic || [],
-      settings: p.settings || {},
+      settings: safeSettings,
     },
   };
 }

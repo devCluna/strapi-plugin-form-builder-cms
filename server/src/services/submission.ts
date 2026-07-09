@@ -2,6 +2,31 @@ const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 const SUBMISSION_UID = `plugin::${PLUGIN_ID}.form-submission`;
 const FORM_UID = `plugin::${PLUGIN_ID}.form`;
 
+const CAPTCHA_ENDPOINTS: Record<string, string> = {
+  turnstile: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  recaptcha: 'https://www.google.com/recaptcha/api/siteverify',
+};
+
+// Server-side token check. Fails closed: any network/parse error rejects the submission.
+export async function verifyCaptcha(provider: string, secret: string, token: string, ip: string): Promise<boolean> {
+  const url = CAPTCHA_ENDPOINTS[provider];
+  if (!url) return true; // unknown provider — don't block (shouldn't reach here)
+  // trim: users often paste keys with stray leading/trailing whitespace
+  const params = new URLSearchParams({ secret: (secret || '').trim(), response: (token || '').trim() });
+  if (ip) params.append('remoteip', ip);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const json: any = await res.json();
+    return !!json.success;
+  } catch {
+    return false;
+  }
+}
+
 export default ({ strapi }: { strapi: any }) => ({
   async submit(
     slug: string,
@@ -39,6 +64,17 @@ export default ({ strapi }: { strapi: any }) => ({
       return { success: true, successMessage: live.settings?.successMessage };
     }
 
+    // CAPTCHA — verify the challenge token against the provider before accepting
+    const captcha = live.settings?.captcha;
+    if (captcha && captcha.provider && captcha.provider !== 'none' && captcha.secretKey) {
+      const ok = await verifyCaptcha(captcha.provider, captcha.secretKey, body._fc_captcha, meta.ip);
+      if (!ok) {
+        const err: any = new Error('Captcha verification failed. Please try again.');
+        err.name = 'CaptchaError';
+        throw err;
+      }
+    }
+
     // Rate limit per form + IP over the last hour
     if (live.settings?.enableRateLimit && meta.ip) {
       const max = Number(live.settings?.maxSubmissionsPerHour) || 60;
@@ -54,8 +90,8 @@ export default ({ strapi }: { strapi: any }) => ({
       }
     }
 
-    // strip honeypot before persisting so it never lands in stored data
-    const { _fc_hp, ...clean } = body;
+    // strip honeypot + captcha token before persisting so they never land in stored data
+    const { _fc_hp, _fc_captcha, ...clean } = body;
 
     // Freeze the field schema used at submit time so the record stays accurate
     // even if the form's fields are later added, removed or renamed.

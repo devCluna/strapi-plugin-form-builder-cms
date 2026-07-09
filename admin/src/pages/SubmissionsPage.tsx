@@ -311,7 +311,6 @@ export function SubmissionsPage() {
                   {shownColumns.map((c) => (
                     <Th key={c.name}><Typography variant="sigma">{c.label}</Typography></Th>
                   ))}
-                  <Th><Typography variant="sigma">Actions</Typography></Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -334,9 +333,6 @@ export function SubmissionsPage() {
                         </Td>
                       );
                     })}
-                    <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                      <button type="button" onClick={() => setSelectedId(sub.id)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, color: C.n500, cursor: 'pointer' }}>›</button>
-                    </Td>
                   </Tr>
                 ))}
               </Tbody>
