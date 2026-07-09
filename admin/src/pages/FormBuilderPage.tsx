@@ -97,8 +97,25 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
   const [description, setDescription] = useState(initialDescription);
   const [settings, setSettings] = useState<FormSettings>(initialSettings);
   const [captchaErr, setCaptchaErr] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; reason?: string } | null>(null);
+  const api = useFormsApi();
   const patch = (p: Partial<FormSettings>) => setSettings((s) => ({ ...s, ...p }));
   const onCancel = onClose;
+
+  const testCaptcha = async () => {
+    if (!settings.captcha) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await api.testCaptcha(settings.captcha.provider, settings.captcha.secretKey);
+      setTestResult(r);
+    } catch {
+      setTestResult({ ok: false, reason: 'Test request failed' });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const handleSave = () => {
     const cap = settings.captcha;
@@ -193,7 +210,20 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <label style={dLbl}>Secret key</label>
-                  <input type="password" value={settings.captcha.secretKey} onChange={(e) => patch({ captcha: { ...settings.captcha!, secretKey: e.target.value } })} placeholder="Private — kept server-side, never exposed" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                  <input type="password" value={settings.captcha.secretKey} onChange={(e) => { setTestResult(null); patch({ captcha: { ...settings.captcha!, secretKey: e.target.value } }); }} placeholder="Private — kept server-side, never exposed" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                </div>
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button type="button" onClick={testCaptcha} disabled={testing || !settings.captcha.secretKey.trim()} style={{ height: 30, padding: '0 12px', borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, color: C.n800, font: `600 12px ${FF}`, cursor: testing || !settings.captcha.secretKey.trim() ? 'not-allowed' : 'pointer', opacity: testing || !settings.captcha.secretKey.trim() ? 0.5 : 1 }}>
+                    {testing ? 'Testing…' : 'Test secret key'}
+                  </button>
+                  {testResult && (
+                    <span style={{ font: `600 12px ${FF}`, color: testResult.ok ? C.suc600 : C.dng600 }}>
+                      {testResult.ok ? '✓ Secret key valid' : `✗ ${testResult.reason || 'Invalid'}`}
+                    </span>
+                  )}
+                </div>
+                <div style={{ ...dHint, marginTop: 6 }}>
+                  Note: the site key can only be checked on the live form — an invalid site key shows no widget there.
                 </div>
                 {captchaErr && <div style={{ marginTop: 10, font: `500 12px ${FF}`, color: C.dng600 }}>{captchaErr}</div>}
               </>

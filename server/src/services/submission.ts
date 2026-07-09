@@ -29,6 +29,33 @@ export async function verifyCaptcha(provider: string, secret: string, token: str
 }
 
 export default ({ strapi }: { strapi: any }) => ({
+  // Validate a CAPTCHA secret key against the provider (called from the admin settings
+  // "Test" button). A dummy token is sent: a valid secret comes back with an
+  // "invalid-input-response" error (secret OK, token bad); an invalid secret returns
+  // "invalid-input-secret". This lets us catch wrong secret keys before publishing.
+  async testCaptchaSecret(provider: string, secret: string): Promise<{ ok: boolean; reason?: string }> {
+    const url = CAPTCHA_ENDPOINTS[provider];
+    if (!url) return { ok: false, reason: 'Unknown provider' };
+    if (!secret || !secret.trim()) return { ok: false, reason: 'Secret key is empty' };
+    const params = new URLSearchParams({ secret: secret.trim(), response: 'test-token' });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+        signal: AbortSignal.timeout(5000),
+      });
+      const json: any = await res.json();
+      const codes: string[] = json['error-codes'] || [];
+      if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret')) {
+        return { ok: false, reason: 'Secret key is invalid' };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: 'Could not reach the CAPTCHA provider' };
+    }
+  },
+
   async submit(
     slug: string,
     body: Record<string, any>,

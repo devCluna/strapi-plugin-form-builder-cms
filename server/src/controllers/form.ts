@@ -389,13 +389,33 @@ function embedScript(): string {
     box.className = 'sfb-captcha';
     box.style.margin = '4px 0 16px';
     formEl.appendChild(box);
+
+    var failed = false;
+    function fail() {
+      if (failed) return;
+      failed = true;
+      box.innerHTML = '';
+      var m = document.createElement('p');
+      m.className = 'sfb-error';
+      m.textContent = 'Verification could not load. Please contact the site owner.';
+      box.appendChild(m);
+    }
+    // fallback: an invalid site key renders nothing and fires no error — flag it after a grace period
+    function guard() { setTimeout(function () { if (!box.querySelector('iframe')) fail(); }, 5000); }
+
     if (cfg.provider === 'turnstile') {
       loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', 'sfb-turnstile', function () {
-        whenReady(function () { return window.turnstile; }, function () { window.turnstile.render(box, { sitekey: cfg.siteKey }); });
+        whenReady(function () { return window.turnstile; }, function () {
+          try { window.turnstile.render(box, { sitekey: cfg.siteKey, 'error-callback': fail }); guard(); }
+          catch (e) { fail(); }
+        });
       });
     } else if (cfg.provider === 'recaptcha') {
       loadScript('https://www.google.com/recaptcha/api.js?render=explicit', 'sfb-recaptcha', function () {
-        whenReady(function () { return window.grecaptcha && window.grecaptcha.render; }, function () { window.grecaptcha.render(box, { sitekey: cfg.siteKey }); });
+        whenReady(function () { return window.grecaptcha && window.grecaptcha.render; }, function () {
+          try { window.grecaptcha.render(box, { sitekey: cfg.siteKey, 'error-callback': fail }); guard(); }
+          catch (e) { fail(); }
+        });
       });
     }
   }

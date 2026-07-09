@@ -46,6 +46,12 @@ export default {
     }
   },
 
+  async testCaptcha(ctx: any) {
+    const { provider, secretKey } = ctx.request.body || {};
+    const result = await strapi.plugin(PLUGIN_ID).service('submission').testCaptchaSecret(provider, secretKey);
+    ctx.body = result;
+  },
+
   async find(ctx: any) {
     const { formId } = ctx.params;
     const submissions = await strapi.plugin(PLUGIN_ID).service('submission').find(Number(formId), ctx.query);
