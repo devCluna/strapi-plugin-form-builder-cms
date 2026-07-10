@@ -21,6 +21,7 @@ A visual drag-and-drop form builder plugin for [Strapi 5](https://strapi.io). Cr
 - **Spam & limits** — honeypot field plus optional per-IP hourly rate limiting.
 - **CAPTCHA** — optional Cloudflare Turnstile or Google reCAPTCHA v2 per form, verified server-side (fail-closed). The secret key never reaches the browser.
 - **Hidden tracking fields** — capture UTM parameters, referrers or campaign IDs from the page URL into every submission.
+- **Visual style editor** — a dedicated Style mode with a live Desktop/Mobile preview: accent, fonts, backgrounds, corners, field & button styles, spacing, shadow, card border and placement, plus editable colour palettes. No CSS required; changes follow draft / publish.
 - **Submission inbox** — search, filter by status (new / read / archived), bulk mark-as-read / archive / delete, per-form column picker, a detail drawer with next/previous navigation, and CSV export.
 - **Form preview** — preview the rendered form inside the admin before publishing.
 
@@ -214,6 +215,7 @@ Each rule accepts an optional **custom error message**. The same rule type canno
 | Honeypot protection | Adds a hidden field to silently discard bot submissions |
 | Rate limiting | Caps submissions per IP each hour (configurable max) |
 | CAPTCHA | None, Cloudflare Turnstile or Google reCAPTCHA v2 — with a **Test secret key** button to validate credentials before publishing |
+| Custom styles | Enables the visual **Style** editor for the form (see below) |
 | Redirect URL | Where to send the visitor after a successful submit |
 
 ---
@@ -246,9 +248,24 @@ The captured value is stored with the submission and included in the CSV export.
 
 ---
 
-## Styling the embedded form
+## Styling
 
-The embedded form renders in the host page's DOM (no shadow DOM), so you can restyle it from your own site.
+### Visual style editor (no code)
+
+Turn on **Custom styles** in the form's Settings drawer to reveal a **Style** tab next to **Fields**. It opens a dedicated editor with a live Desktop/Mobile preview:
+
+- **Brand** — accent colour, font (Sans / Serif / Round / Mono).
+- **Background** — form card and page colours.
+- **Fields** — corners (Sharp / Rounded / Pill), style (Outline / Filled / Underline), label weight.
+- **Button** — style (Solid / Outline) and width (Full / Auto).
+- **Layout** — form width, spacing, card shadow, card border, card corners, and placement (Top / Center).
+- **Colour palettes** are editable — add colours with the picker, remove any swatch; they're saved with the form. **Reset to default theme** restores everything.
+
+Everything resolves to a small set of `--sfb-*` CSS variables applied to both the preview and the public form, so the preview matches production. Style changes follow the normal **draft / publish** flow — they go live when you publish.
+
+### Overriding styles from your own site
+
+The embedded form renders in the host page's DOM (no shadow DOM), so you can also restyle it from your own site.
 
 **CSS variables** (the recommended, stable API):
 
@@ -321,7 +338,7 @@ Pull requests are welcome. For major changes please open an issue first to discu
 - [x] Export submissions as CSV
 - [x] CAPTCHA / spam protection (Cloudflare Turnstile · reCAPTCHA v2)
 - [x] Hidden tracking fields (UTM / referrer capture)
-- [ ] Theming / style presets
+- [x] Visual style editor (theming, live preview)
 - [ ] Email notifications on new submission
 - [ ] File upload field type
 - [ ] Multi-step / wizard forms
