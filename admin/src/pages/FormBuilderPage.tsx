@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Box, Flex, Loader } from '@strapi/design-system';
+import { useNotification } from '@strapi/strapi/admin';
 import { ArrowLeft, Pencil } from '@strapi/icons';
 import { v4 as uuid } from 'uuid';
 import { FieldPalette } from '../components/FieldPalette';
@@ -10,8 +11,10 @@ import { FormPreview } from '../components/FormPreview';
 import { EmbedModal } from '../components/EmbedModal';
 import { useFormsApi } from '../api';
 import { Form, FormField, FormSettings, FieldType } from '../types';
+import { StyleMode } from '../components/StyleMode';
 import { PLUGIN_ID } from '../pluginId';
 import { C, FF } from '../ui';
+import { FormTheme, DEFAULT_THEME, resolveThemeVars } from '../theme';
 
 const DEFAULT_SETTINGS: FormSettings = {
   submitButtonText: 'Submit',
@@ -24,6 +27,9 @@ const DEFAULT_SETTINGS: FormSettings = {
   customCss: '',
   publicPage: false,
   captcha: { provider: 'none', siteKey: '', secretKey: '' },
+  enableStyle: false,
+  theme: DEFAULT_THEME,
+  themeVars: resolveThemeVars(DEFAULT_THEME),
 };
 
 // Order-insensitive stringify so key ordering in stored JSON doesn't create false diffs.
@@ -85,13 +91,15 @@ function ToggleRow({ label, hint, on, onClick }: { label: string; hint: string; 
   );
 }
 
-function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt, onClose, onSave }: {
+function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt, onClose, onSave, onToggleStyle, onOpenStyle }: {
   initialDescription: string;
   initialSettings: FormSettings;
   slug: string | null;
   publishedAt: string | null;
   onClose: () => void;
   onSave: (description: string, settings: FormSettings) => void;
+  onToggleStyle: (v: boolean) => void;
+  onOpenStyle: () => void;
 }) {
   // edits stay in a local buffer — they only reach the form on "Save settings"
   const [description, setDescription] = useState(initialDescription);
@@ -174,6 +182,19 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
                 ) : (
                   <div style={dHint}>Save the form to generate the public link.</div>
                 )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
+            <div style={dGroupT}>Style</div>
+            <ToggleRow label="Custom styles" hint="Enable the Style editor to theme the public form." on={!!settings.enableStyle} onClick={() => { const v = !settings.enableStyle; patch({ enableStyle: v }); onToggleStyle(v); }} />
+            {settings.enableStyle && (
+              <div style={{ marginTop: 12 }}>
+                <button type="button" onClick={onOpenStyle} style={{ font: `600 12px ${FF}`, color: C.p600, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                  Open the style editor →
+                </button>
+                <div style={{ ...dHint, marginTop: 6 }}>Style changes follow draft / publish — they go live when you publish.</div>
               </div>
             )}
           </div>
@@ -271,6 +292,7 @@ export function FormBuilderPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const api = useFormsApi();
+  const { toggleNotification } = useNotification();
   const isNew = !id || id === 'new';
   // seed a brand-new form from a template chosen on the list page (router state)
   const seed = (location.state || {}) as { templateFields?: FormField[]; templateTitle?: string };
@@ -283,6 +305,7 @@ export function FormBuilderPage() {
   const [fields, setFields] = useState<FormField[]>(seed.templateFields || []);
   const [settings, setSettings] = useState<FormSettings>(DEFAULT_SETTINGS);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'fields' | 'style'>('fields');
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
@@ -388,6 +411,7 @@ export function FormBuilderPage() {
         setPublishedAt(updated.publishedAt ?? null);
         markSaved();
       }
+      toggleNotification({ type: 'info', message: 'Saved as draft. Publish to make your changes — including styles — live.' });
     } finally {
       setSaving(false);
     }
@@ -413,6 +437,7 @@ export function FormBuilderPage() {
         setPublishedData(updated.publishedData ?? snap);
         markSaved();
       }
+      toggleNotification({ type: 'success', message: 'Published. Your form and styles are now live.' });
     } finally {
       setPublishing(false);
     }
@@ -465,6 +490,16 @@ export function FormBuilderPage() {
             {status.label}
           </span>
         </div>
+        {settings.enableStyle && (
+          <div style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 8, overflow: 'hidden', flex: 'none' }}>
+            {(['fields', 'style'] as const).map((m, i) => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                style={{ height: 34, padding: '0 18px', border: 'none', borderLeft: i ? `1px solid ${C.n200}` : 'none', background: mode === m ? C.p600 : C.n0, color: mode === m ? '#fff' : C.n700, font: `600 13px ${FF}`, cursor: 'pointer', textTransform: 'capitalize' }}>
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {showLiveLink && (
             <a href={liveUrl} target="_blank" rel="noopener noreferrer" title="Open the live public form" style={{ font: `600 12px ${FF}`, color: C.p600, textDecoration: 'none', marginRight: 4 }}>
@@ -488,10 +523,13 @@ export function FormBuilderPage() {
           publishedAt={publishedAt}
           onClose={() => setShowSettings(false)}
           onSave={(desc, s) => { setDescription(desc); setSettings(s); setShowSettings(false); }}
+          onToggleStyle={(v) => setSettings((s) => ({ ...s, enableStyle: v }))}
+          onOpenStyle={() => { setShowSettings(false); setMode('style'); }}
         />
       )}
 
       {/* Main area */}
+      {mode === 'fields' || !settings.enableStyle ? (
       <Flex style={{ flex: 1, minHeight: 0 }}>
         <FieldPalette onAdd={addField} />
 
@@ -536,6 +574,16 @@ export function FormBuilderPage() {
           />
         )}
       </Flex>
+      ) : (
+        <StyleMode
+          title={title}
+          description={description}
+          fields={fields}
+          settings={settings}
+          theme={settings.theme || DEFAULT_THEME}
+          onChange={(t) => setSettings((s) => ({ ...s, theme: t, themeVars: resolveThemeVars(t) }))}
+        />
+      )}
 
       <FormPreview
         title={title}
