@@ -29,7 +29,7 @@ select.sfb-input { appearance: none; cursor: pointer; }
 .sfb-heading { font-size: 18px; font-weight: 700; color: var(--sfb-text, #1f1f33); margin: 4px 0; }
 .sfb-paragraph { font-size: 14px; color: var(--sfb-muted, #666687); margin: 4px 0; line-height: 1.6; }
 .sfb-divider { border: none; border-top: 1px solid var(--sfb-border, #dcdce4); margin: 4px 0; }
-.sfb-success { font-size: 15px; color: #27ae60; font-weight: 600; }
+.sfb-success { font-size: 16px; color: #27ae60; font-weight: 600; padding: 8px 0; margin: 0; }
 .sfb-error { font-size: 13px; color: #ee5e52; margin-bottom: 12px; }
 .sfb-field-error { font-size: 12px; color: #ee5e52; margin: 4px 0 0; }
 .sfb-field--error .sfb-input, .sfb-field--error .sfb-radio-group { border-color: #ee5e52 !important; }
