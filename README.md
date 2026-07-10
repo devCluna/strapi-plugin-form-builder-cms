@@ -1,4 +1,8 @@
-# strapi-plugin-form-builder-cms
+<p align="center">
+  <img src="https://raw.githubusercontent.com/devCluna/strapi-plugin-form-builder-cms/main/assets/logo.png" alt="Strapi Form Builder" width="120" height="120" />
+</p>
+
+<h1 align="center">Strapi Form Builder</h1>
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-form-builder-cms.svg)](https://www.npmjs.com/package/strapi-plugin-form-builder-cms)
 [![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-form-builder-cms.svg)](https://www.npmjs.com/package/strapi-plugin-form-builder-cms)
