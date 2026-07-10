@@ -1,3 +1,5 @@
+import { FORM_CSS } from '../../../admin/src/form-css';
+
 const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 
 function escapeHtml(s: string): string {
@@ -13,6 +15,11 @@ function publicPageHtml(form: any): string {
   const title = escapeHtml(form.title || 'Form');
   const description = escapeHtml(form.description || '');
   const formId = form.id;
+  // resolved theme vars → inline style on the card so it themes together with the form inside
+  const tv = (form.settings && form.settings.themeVars) || {};
+  const cardVars = Object.keys(tv)
+    .map((k) => `${k}: ${String(tv[k]).replace(/[;{}<>]/g, '')}`)
+    .join('; ');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -24,30 +31,33 @@ function publicPageHtml(form: any): string {
     *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f9;
-      color: #32324d;
+      font-family: var(--sfb-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--sfb-page-bg, #f5f5f9);
+      color: var(--sfb-text, #32324d);
       min-height: 100vh;
       display: flex;
-      align-items: flex-start;
+      align-items: var(--sfb-page-align, flex-start);
       justify-content: center;
       padding: 48px 20px;
     }
     .card {
-      background: #fff;
-      border: 1px solid #dcdce4;
-      border-radius: 8px;
+      background: var(--sfb-bg, #fff);
+      color: var(--sfb-text, #32324d);
+      border: var(--sfb-card-border, 1px solid var(--sfb-border, #dcdce4));
+      border-radius: var(--sfb-card-radius, 14px);
+      box-shadow: var(--sfb-shadow, none);
       padding: 40px 48px;
       width: 100%;
-      max-width: 640px;
+      max-width: var(--sfb-form-width, 640px);
     }
     h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
-    .desc { font-size: 14px; color: #666687; margin: 0 0 28px; }
+    .desc { font-size: 14px; color: var(--sfb-muted, #666687); margin: 0 0 28px; }
     @media (max-width: 600px) { .card { padding: 28px 20px; } }
+    body { ${cardVars} }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card"${form.settings && form.settings.theme && form.settings.theme.fieldStyle ? ` data-sfb-fields="${form.settings.theme.fieldStyle}"` : ''}>
     <h1>${title}</h1>
     ${description ? `<p class="desc">${description}</p>` : ''}
     <div id="sfb-form-${formId}"></div>
@@ -91,6 +101,15 @@ function embedScript(): string {
     // let the plugin's own validation + server errors drive messages instead of
     // the browser's native required bubble
     formEl.noValidate = true;
+
+    // apply the form's resolved theme (variables + the field-style variant attribute)
+    if (form.settings && form.settings.themeVars) {
+      var tv = form.settings.themeVars;
+      for (var k in tv) { if (Object.prototype.hasOwnProperty.call(tv, k)) formEl.style.setProperty(k, tv[k]); }
+    }
+    if (form.settings && form.settings.theme && form.settings.theme.fieldStyle) {
+      formEl.setAttribute('data-sfb-fields', form.settings.theme.fieldStyle);
+    }
 
     var captchaCfg = (form.settings && form.settings.captcha) || null;
     var captchaOn = !!(captchaCfg && captchaCfg.provider && captchaCfg.provider !== 'none' && captchaCfg.siteKey);
@@ -428,32 +447,7 @@ function embedScript(): string {
     if (document.getElementById('sfb-css')) return;
     var s = document.createElement('style');
     s.id = 'sfb-css';
-    s.textContent = [
-      '.sfb-form { font-family: inherit; text-align: left; color: #32324d; line-height: 1.5; }',
-      '.sfb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }',
-      '.sfb-field { display: flex; flex-direction: column; gap: 4px; }',
-      '.sfb-label { font-size: 13px; font-weight: 600; color: #32324d; }',
-      '.sfb-required { color: #ee5e52; }',
-      '.sfb-input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid #dcdce4; border-radius: var(--sfb-radius, 4px); font-size: 14px; font-family: inherit; color: #32324d; background: #fff; box-sizing: border-box; outline: none; transition: border-color .15s; }',
-      '.sfb-input:focus { border-color: var(--sfb-accent, #4945ff); box-shadow: 0 0 0 2px rgba(73,69,255,.15); }',
-      'textarea.sfb-input { height: auto; padding: 8px 12px; resize: vertical; }',
-      'select.sfb-input { appearance: none; cursor: pointer; }',
-      '.sfb-radio-group { display: flex; flex-direction: column; gap: 8px; }',
-      '.sfb-radio-label, .sfb-checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #32324d; cursor: pointer; }',
-      '.sfb-radio-label input, .sfb-checkbox-label input { accent-color: var(--sfb-accent, #4945ff); width: 16px; height: 16px; cursor: pointer; }',
-      '.sfb-help { font-size: 12px; color: #666687; margin: 0; }',
-      '.sfb-btn { background: var(--sfb-accent, #4945ff); color: #fff; border: none; border-radius: var(--sfb-radius, 4px); padding: 10px 24px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity .15s; }',
-      '.sfb-btn:hover { opacity: .88; }',
-      '.sfb-btn:disabled { opacity: .6; cursor: not-allowed; }',
-      '.sfb-heading { font-size: 18px; font-weight: 700; color: #32324d; margin: 4px 0; }',
-      '.sfb-paragraph { font-size: 14px; color: #666687; margin: 4px 0; line-height: 1.6; }',
-      '.sfb-divider { border: none; border-top: 1px solid #dcdce4; margin: 4px 0; }',
-      '.sfb-success { font-size: 15px; color: #27ae60; font-weight: 600; }',
-      '.sfb-error { font-size: 13px; color: #ee5e52; margin-bottom: 12px; }',
-      '.sfb-field-error { font-size: 12px; color: #ee5e52; margin: 4px 0 0; }',
-      '.sfb-field--error .sfb-input, .sfb-field--error .sfb-radio-group { border-color: #ee5e52 !important; }',
-      '.sfb-field--error > .sfb-label { color: #ee5e52; }',
-    ].join('\\n');
+    s.textContent = ${JSON.stringify(FORM_CSS)};
     document.head.appendChild(s);
   }
 

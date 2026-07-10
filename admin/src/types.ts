@@ -1,3 +1,5 @@
+import type { FormTheme } from './theme';
+
 export type FieldType =
   | 'text'
   | 'email'
@@ -72,6 +74,10 @@ export interface FormSettings {
     siteKey: string;
     secretKey: string;
   };
+  enableStyle?: boolean;
+  theme?: FormTheme;
+  // resolved --sfb-* vars, baked at edit time so the embed/public page apply them verbatim
+  themeVars?: Record<string, string>;
 }
 
 export interface Form {
