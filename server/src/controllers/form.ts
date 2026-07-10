@@ -225,11 +225,28 @@ function embedScript(): string {
           });
         })
         .then(function () {
+          // redirect after submit, if configured — only to an http(s) or relative URL,
+          // so a "javascript:"/"data:" value can never run as an open-redirect/XSS.
+          var redirect = form.settings && form.settings.redirectUrl;
+          if (redirect) {
+            var safe = false;
+            try { var ru = new URL(redirect, window.location.href); safe = ru.protocol === 'http:' || ru.protocol === 'https:'; } catch (e) { safe = false; }
+            if (safe) { window.location.href = redirect; return; }
+          }
+          // otherwise show the success message — wrapped in .sfb-form + re-applying the
+          // theme so it stays styled (the themed <form> we just cleared is gone)
+          var wrap = document.createElement('div');
+          wrap.className = 'sfb-form';
+          if (form.settings && form.settings.themeVars) {
+            var stv = form.settings.themeVars;
+            for (var sk in stv) { if (Object.prototype.hasOwnProperty.call(stv, sk)) wrap.style.setProperty(sk, stv[sk]); }
+          }
           var msg = document.createElement('p');
           msg.className = 'sfb-success';
           msg.textContent = (form.settings && form.settings.successMessage) || 'Form submitted successfully';
+          wrap.appendChild(msg);
           el.innerHTML = '';
-          el.appendChild(msg);
+          el.appendChild(wrap);
         })
         .catch(function (body) {
           btn.disabled = false;
