@@ -1,4 +1,5 @@
 import { FORM_CSS } from '../../../admin/src/form-css';
+import { isSafeRedirect } from '../lib/embed';
 
 const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 
@@ -74,6 +75,7 @@ function publicPageHtml(form: any): string {
 function embedScript(): string {
   return `(function () {
   var PLUGIN = 'strapi-plugin-form-builder-cms';
+  var isSafeRedirect = ${isSafeRedirect.toString()};
 
   function init() {
     document.querySelectorAll('script[data-form-id]').forEach(function (script) {
@@ -228,11 +230,7 @@ function embedScript(): string {
           // redirect after submit, if configured — only to an http(s) or relative URL,
           // so a "javascript:"/"data:" value can never run as an open-redirect/XSS.
           var redirect = form.settings && form.settings.redirectUrl;
-          if (redirect) {
-            var safe = false;
-            try { var ru = new URL(redirect, window.location.href); safe = ru.protocol === 'http:' || ru.protocol === 'https:'; } catch (e) { safe = false; }
-            if (safe) { window.location.href = redirect; return; }
-          }
+          if (redirect && isSafeRedirect(redirect, window.location.href)) { window.location.href = redirect; return; }
           // otherwise show the success message — wrapped in .sfb-form + re-applying the
           // theme so it stays styled (the themed <form> we just cleared is gone)
           var wrap = document.createElement('div');
