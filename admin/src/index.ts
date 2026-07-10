@@ -9,7 +9,7 @@ export default {
       icon: PluginIcon,
       intlLabel: {
         id: `${PLUGIN_ID}.plugin.name`,
-        defaultMessage: PLUGIN_ID,
+        defaultMessage: 'Form Builder',
       },
       Component: async () => {
         const { App } = await import("./pages/App");

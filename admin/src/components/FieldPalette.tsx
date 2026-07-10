@@ -20,7 +20,7 @@ export function FieldPalette({ onAdd }: Props) {
   }, [query]);
 
   return (
-    <div style={{ width: 232, minWidth: 232, background: C.n0, borderRight: `1px solid ${C.n150}`, overflowY: 'auto', alignSelf: 'stretch', padding: '16px 14px' }}>
+    <div data-tour="palette" style={{ width: 232, minWidth: 232, background: C.n0, borderRight: `1px solid ${C.n150}`, overflowY: 'auto', alignSelf: 'stretch', padding: '16px 14px' }}>
       <div style={{ height: 34, border: `1px solid ${C.n200}`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', marginBottom: 14 }}>
         <span style={{ color: C.n500, display: 'inline-flex' }}><Search width="14px" height="14px" fill={C.n500} /></span>
         <input

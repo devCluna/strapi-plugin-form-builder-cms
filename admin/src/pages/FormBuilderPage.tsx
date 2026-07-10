@@ -12,6 +12,7 @@ import { EmbedModal } from '../components/EmbedModal';
 import { useFormsApi } from '../api';
 import { Form, FormField, FormSettings, FieldType } from '../types';
 import { StyleMode } from '../components/StyleMode';
+import { GuidedTour, TourStep } from '../components/GuidedTour';
 import { PLUGIN_ID } from '../pluginId';
 import { C, FF } from '../ui';
 import { FormTheme, DEFAULT_THEME, resolveThemeVars } from '../theme';
@@ -43,8 +44,8 @@ function stableStringify(v: any): string {
 const liveSnap = (o: { title: string; description: string; fields: any; settings: any }) =>
   stableStringify({ title: o.title, description: o.description ?? '', fields: o.fields ?? [], settings: o.settings ?? {} });
 
-function HeaderBtn({ variant, onClick, disabled, children }: {
-  variant: 'ghost' | 'sec' | 'pri'; onClick: () => void; disabled?: boolean; children: React.ReactNode;
+function HeaderBtn({ variant, onClick, disabled, children, tour }: {
+  variant: 'ghost' | 'sec' | 'pri'; onClick: () => void; disabled?: boolean; children: React.ReactNode; tour?: string;
 }) {
   const styles: Record<string, React.CSSProperties> = {
     ghost: { background: C.n0, color: C.n800, border: `1px solid ${C.n200}` },
@@ -54,6 +55,7 @@ function HeaderBtn({ variant, onClick, disabled, children }: {
   return (
     <button
       type="button"
+      data-tour={tour}
       onClick={onClick}
       disabled={disabled}
       style={{ height: 32, padding: '0 12px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', font: `600 12px ${FF}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap', ...styles[variant] }}
@@ -165,7 +167,9 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
 
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
             <div style={dGroupT}>Public access</div>
-            <ToggleRow label="Public page" hint="Generate a shareable live link." on={settings.publicPage} onClick={() => patch({ publicPage: !settings.publicPage })} />
+            <div data-tour="publicpage">
+              <ToggleRow label="Public page" hint="Generate a shareable live link." on={settings.publicPage} onClick={() => patch({ publicPage: !settings.publicPage })} />
+            </div>
             {settings.publicPage && (
               <div style={{ marginTop: 14 }}>
                 {slug ? (
@@ -188,7 +192,9 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
 
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
             <div style={dGroupT}>Style</div>
-            <ToggleRow label="Custom styles" hint="Enable the Style editor to theme the public form." on={!!settings.enableStyle} onClick={() => { const v = !settings.enableStyle; patch({ enableStyle: v }); onToggleStyle(v); }} />
+            <div data-tour="customstyles">
+              <ToggleRow label="Custom styles" hint="Enable the Style editor to theme the public form." on={!!settings.enableStyle} onClick={() => { const v = !settings.enableStyle; patch({ enableStyle: v }); onToggleStyle(v); }} />
+            </div>
             {settings.enableStyle && (
               <div style={{ marginTop: 12 }}>
                 <button type="button" onClick={onOpenStyle} style={{ font: `600 12px ${FF}`, color: C.p600, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
@@ -306,6 +312,7 @@ export function FormBuilderPage() {
   const [settings, setSettings] = useState<FormSettings>(DEFAULT_SETTINGS);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [mode, setMode] = useState<'fields' | 'style'>('fields');
+  const [showTour, setShowTour] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
@@ -445,6 +452,27 @@ export function FormBuilderPage() {
 
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
+  // guided tour — auto-runs once per browser, re-launchable from the "?" button
+  const TOUR_KEY = 'sfb-tour-done';
+  const tourSteps: TourStep[] = [
+    { selector: '[data-tour="palette"]', title: 'Field palette', body: 'Click any field type to add it to your form. Use search to filter the list.' },
+    { selector: '[data-tour="canvas"]', title: 'Build your form', body: 'Fields land here. Click one to edit its label, validation and width; drag the handle to reorder.' },
+    { selector: '[data-tour="settings"]', title: 'Settings', body: 'Public page, spam protection, CAPTCHA and custom styles live in this drawer.' },
+    { selector: '[data-tour="publicpage"]', title: 'Public page', body: 'Turn this on to generate a shareable hosted page for the form (live once published).', panel: 'settings' },
+    { selector: '[data-tour="customstyles"]', title: 'Custom styles', body: 'Enable this to unlock the visual Style editor for theming the public form.', panel: 'settings' },
+    ...(settings.enableStyle ? [{ selector: '[data-tour="styletab"]', title: 'Style', body: 'Theme the public form visually — colours, fonts, corners and layout — with a live preview.' }] : []),
+    { selector: '[data-tour="preview"]', title: 'Preview', body: 'See the rendered form before you publish it.' },
+    { selector: '[data-tour="embed"]', title: 'Embed', body: 'Once the form is saved, grab the snippet here to drop it onto any website.' },
+    { selector: '[data-tour="publish"]', title: 'Publish', body: 'Save a draft privately, or publish to push your changes — fields and styles — live.' },
+  ];
+  const startTour = () => setShowTour(true);
+  const endTour = () => { setShowTour(false); setShowSettings(false); try { localStorage.setItem(TOUR_KEY, '1'); } catch { /* ignore */ } };
+
+  useEffect(() => {
+    if (loading) return;
+    try { if (!localStorage.getItem(TOUR_KEY)) setShowTour(true); } catch { /* ignore */ }
+  }, [loading]);
+
   if (loading) {
     return (
       <Flex justifyContent="center" padding={10}>
@@ -491,7 +519,7 @@ export function FormBuilderPage() {
           </span>
         </div>
         {settings.enableStyle && (
-          <div style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 8, overflow: 'hidden', flex: 'none' }}>
+          <div data-tour="styletab" style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 8, overflow: 'hidden', flex: 'none' }}>
             {(['fields', 'style'] as const).map((m, i) => (
               <button key={m} type="button" onClick={() => setMode(m)}
                 style={{ height: 34, padding: '0 18px', border: 'none', borderLeft: i ? `1px solid ${C.n200}` : 'none', background: mode === m ? C.p600 : C.n0, color: mode === m ? '#fff' : C.n700, font: `600 13px ${FF}`, cursor: 'pointer', textTransform: 'capitalize' }}>
@@ -506,11 +534,12 @@ export function FormBuilderPage() {
               View live ↗
             </a>
           )}
-          <HeaderBtn variant="ghost" onClick={() => setShowSettings((v) => !v)}>Settings</HeaderBtn>
-          <HeaderBtn variant="ghost" onClick={() => setShowPreview(true)}>Preview</HeaderBtn>
-          {!isNew && <HeaderBtn variant="ghost" onClick={() => setShowEmbed(true)}>Embed</HeaderBtn>}
+          <button type="button" onClick={startTour} title="Take a tour" style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${C.n200}`, background: C.n0, color: C.n600, font: `700 14px ${FF}`, cursor: 'pointer', flex: 'none' }}>?</button>
+          <HeaderBtn variant="ghost" tour="settings" onClick={() => setShowSettings((v) => !v)}>Settings</HeaderBtn>
+          <HeaderBtn variant="ghost" tour="preview" onClick={() => setShowPreview(true)}>Preview</HeaderBtn>
+          <HeaderBtn variant="ghost" tour="embed" disabled={isNew} onClick={() => setShowEmbed(true)}>Embed</HeaderBtn>
           <HeaderBtn variant="sec" onClick={saveDraft} disabled={saving}>Save draft</HeaderBtn>
-          <HeaderBtn variant="pri" onClick={publish} disabled={publishing}>Publish</HeaderBtn>
+          <HeaderBtn variant="pri" tour="publish" onClick={publish} disabled={publishing}>Publish</HeaderBtn>
         </div>
       </div>
 
@@ -534,7 +563,7 @@ export function FormBuilderPage() {
         <FieldPalette onAdd={addField} />
 
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, alignSelf: 'stretch', background: C.n100, padding: '28px 32px 60px', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: '100%', maxWidth: 860 }}>
+          <div data-tour="canvas" style={{ width: '100%', maxWidth: 860 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <b style={{ font: `700 15px ${FF}`, color: C.n900 }}>Fields</b>
               <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>
@@ -605,6 +634,8 @@ export function FormBuilderPage() {
           onClose={() => setShowEmbed(false)}
         />
       )}
+
+      {showTour && <GuidedTour steps={tourSteps} onClose={endTour} onPanel={(p) => setShowSettings(p === 'settings')} />}
     </Box>
   );
 }
