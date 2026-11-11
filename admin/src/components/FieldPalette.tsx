@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Search } from '@strapi/icons';
 import { FieldType } from '../types';
 import { C, FF, FIELD_CATEGORIES, FieldIcon } from '../ui';
+import { useT } from '../utils/useT';
 
 interface Props {
   onAdd: (type: FieldType) => void;
 }
 
 export function FieldPalette({ onAdd }: Props) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<FieldType | null>(null);
 
@@ -15,9 +17,9 @@ export function FieldPalette({ onAdd }: Props) {
     const q = query.trim().toLowerCase();
     if (!q) return FIELD_CATEGORIES;
     return FIELD_CATEGORIES
-      .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
+      .map((g) => ({ ...g, items: g.items.filter((i) => t(`field.${i.type}`).toLowerCase().includes(q)) }))
       .filter((g) => g.items.length > 0);
-  }, [query]);
+  }, [query, t]);
 
   return (
     <div data-tour="palette" style={{ width: 232, minWidth: 232, background: C.n0, borderRight: `1px solid ${C.n150}`, overflowY: 'auto', alignSelf: 'stretch', padding: '16px 14px' }}>
@@ -26,14 +28,14 @@ export function FieldPalette({ onAdd }: Props) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search fields"
+          placeholder={t('palette.search')}
           style={{ border: 'none', outline: 'none', flex: 1, font: `400 12px ${FF}`, color: C.n800, background: 'none', width: '100%' }}
         />
       </div>
 
       {groups.map((grp) => (
         <div key={grp.cat}>
-          <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500, margin: '14px 4px 8px' }}>{grp.cat}</div>
+          <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500, margin: '14px 4px 8px' }}>{t(`category.${grp.cat}`)}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {grp.items.map((item) => {
               const on = hover === item.type;
@@ -54,7 +56,7 @@ export function FieldPalette({ onAdd }: Props) {
                   }}
                 >
                   <span style={{ color: on ? C.p600 : C.n600, display: 'inline-flex' }}><FieldIcon type={item.type} size={16} /></span>
-                  <span style={{ font: `500 12px ${FF}`, color: C.n800 }}>{item.name}</span>
+                  <span style={{ font: `500 12px ${FF}`, color: C.n800 }}>{t(`field.${item.type}`)}</span>
                 </button>
               );
             })}

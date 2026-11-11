@@ -8,7 +8,7 @@ const HomePage = () => {
 
   return (
     <Main>
-      <h1>Welcome to {formatMessage({ id: getTranslation("plugin.name") })}</h1>
+      <h1>{formatMessage({ id: getTranslation("home.welcome"), defaultMessage: "Welcome to Form Builder" })}</h1>
     </Main>
   );
 };

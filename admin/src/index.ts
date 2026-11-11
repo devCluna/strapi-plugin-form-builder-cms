@@ -1,6 +1,12 @@
 import { PLUGIN_ID } from "./pluginId";
 import { Initializer } from "./components/Initializer";
 import { PluginIcon } from "./components/PluginIcon";
+import { getTranslation } from "./utils/getTranslation";
+
+// Strapi merges every plugin's messages into one flat catalogue, so ids are namespaced
+// with the plugin id (the translation files themselves keep short keys).
+const prefixKeys = (data: Record<string, string>) =>
+  Object.fromEntries(Object.entries(data).map(([key, value]) => [getTranslation(key), value]));
 
 export default {
   register(app: any) {
@@ -8,7 +14,7 @@ export default {
       to: `plugins/${PLUGIN_ID}`,
       icon: PluginIcon,
       intlLabel: {
-        id: `${PLUGIN_ID}.plugin.name`,
+        id: getTranslation("plugin.name"),
         defaultMessage: 'Form Builder',
       },
       Component: async () => {
@@ -34,7 +40,7 @@ export default {
             `./translations/${locale}.json`
           );
 
-          return { data, locale };
+          return { data: prefixKeys(data), locale };
         } catch {
           return { data: {}, locale };
         }

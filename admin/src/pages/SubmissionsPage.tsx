@@ -18,19 +18,21 @@ import { useFormsApi } from '../api';
 import { Form, FormField, FormSubmission } from '../types';
 import { PLUGIN_ID } from '../pluginId';
 import { C, FF } from '../ui';
+import { useT, TranslationKey } from '../utils/useT';
 
-const STATUS_STYLE: Record<string, { bg: string; fg: string; dot: string; label: string }> = {
-  new:      { bg: C.p100,   fg: C.p700,   dot: C.p600,   label: 'New' },
-  read:     { bg: C.n150,   fg: C.n600,   dot: C.n400,   label: 'Read' },
-  archived: { bg: C.wrn100, fg: C.wrn700, dot: C.wrn600, label: 'Archived' },
+const STATUS_STYLE: Record<string, { bg: string; fg: string; dot: string; label: TranslationKey }> = {
+  new:      { bg: C.p100,   fg: C.p700,   dot: C.p600,   label: 'status.new' },
+  read:     { bg: C.n150,   fg: C.n600,   dot: C.n400,   label: 'status.read' },
+  archived: { bg: C.wrn100, fg: C.wrn700, dot: C.wrn600, label: 'status.archived' },
 };
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useT();
   const s = STATUS_STYLE[status] || STATUS_STYLE.new;
   return (
     <span style={{ height: 24, padding: '0 9px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, font: `700 11px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', background: s.bg, color: s.fg }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
-      {s.label}
+      {t(s.label)}
     </span>
   );
 }
@@ -44,14 +46,15 @@ function Stat({ value, label, accent }: { value: React.ReactNode; label: string;
   );
 }
 
-const FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'new', label: 'New' },
-  { value: 'read', label: 'Read' },
-  { value: 'archived', label: 'Archived' },
+const FILTERS: { value: string; label: TranslationKey }[] = [
+  { value: '', label: 'status.all' },
+  { value: 'new', label: 'status.new' },
+  { value: 'read', label: 'status.read' },
+  { value: 'archived', label: 'status.archived' },
 ];
 
 export function SubmissionsPage() {
+  const t = useT();
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
   const api = useFormsApi();
@@ -187,34 +190,34 @@ export function SubmissionsPage() {
     }
   };
 
-  const filterLabel = FILTERS.find((f) => f.value === statusFilter)?.label || 'All';
+  const filterLabel = t(FILTERS.find((f) => f.value === statusFilter)?.label || 'status.all');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ background: C.n0, padding: '20px 40px 22px', borderBottom: `1px solid ${C.n150}` }}>
         <div style={{ font: `400 12px ${FF}`, color: C.n500, marginBottom: 6 }}>
-          Plugins · Form Builder · {form?.title || '…'}
+          {t('submissions.breadcrumb', { title: form?.title || '…' })}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={() => navigate(`/plugins/${PLUGIN_ID}`)} title="Back" style={{ width: 34, height: 34, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, flex: 'none', cursor: 'pointer' }}>
+            <button type="button" onClick={() => navigate(`/plugins/${PLUGIN_ID}`)} title={t('common.back')} style={{ width: 34, height: 34, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, flex: 'none', cursor: 'pointer' }}>
               <ArrowLeft width="16px" height="16px" fill="currentColor" />
             </button>
             <div>
-              <div style={{ font: `800 28px ${FF}`, color: C.n900, letterSpacing: '-.2px' }}>Submissions</div>
+              <div style={{ font: `800 28px ${FF}`, color: C.n900, letterSpacing: '-.2px' }}>{t('submissions.title')}</div>
               <div style={{ font: `400 13px ${FF}`, color: C.n600, marginTop: 4 }}>
-                Responses to “{form?.title || '…'}”.
+                {t('submissions.subtitle', { title: form?.title || '…' })}
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Stat value={stats?.total ?? 0} label="Total" />
-              <Stat value={stats?.byStatus?.new ?? 0} label="New" accent />
+              <Stat value={stats?.total ?? 0} label={t('submissions.total')} />
+              <Stat value={stats?.byStatus?.new ?? 0} label={t('status.new')} accent />
             </div>
             <Button variant="tertiary" onClick={handleExport} loading={exporting} disabled={visible.length === 0}>
-              Export CSV
+              {t('submissions.export')}
             </Button>
           </div>
         </div>
@@ -224,12 +227,12 @@ export function SubmissionsPage() {
         {/* Bulk bar */}
         {selectedIds.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.p100, border: `1px solid ${C.p200}`, borderRadius: 6, padding: '10px 16px', marginBottom: 14 }}>
-            <span style={{ font: `600 13px ${FF}`, color: C.p700 }}>{selectedIds.length} selected</span>
+            <span style={{ font: `600 13px ${FF}`, color: C.p700 }}>{t('list.selected', { count: selectedIds.length })}</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <SmallBtn onClick={() => bulkStatus('read')}>Mark as read</SmallBtn>
-              <SmallBtn onClick={() => bulkStatus('archived')}>Archive</SmallBtn>
-              <SmallBtn danger onClick={() => setBulkDeleteOpen(true)}>Delete</SmallBtn>
-              <SmallBtn onClick={() => setSelectedIds([])}>Clear</SmallBtn>
+              <SmallBtn onClick={() => bulkStatus('read')}>{t('submissions.markRead')}</SmallBtn>
+              <SmallBtn onClick={() => bulkStatus('archived')}>{t('submissions.archive')}</SmallBtn>
+              <SmallBtn danger onClick={() => setBulkDeleteOpen(true)}>{t('common.delete')}</SmallBtn>
+              <SmallBtn onClick={() => setSelectedIds([])}>{t('common.clear')}</SmallBtn>
             </div>
           </div>
         )}
@@ -238,10 +241,10 @@ export function SubmissionsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, position: 'relative' }}>
           <div style={{ height: 36, width: 280, border: `1px solid ${C.n200}`, borderRadius: 4, background: C.n0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px' }}>
             <Search width="14px" height="14px" fill={C.n500} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search submissions" style={{ border: 'none', outline: 'none', flex: 1, font: `400 13px ${FF}`, color: C.n800, background: 'none' }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('submissions.search')} style={{ border: 'none', outline: 'none', flex: 1, font: `400 13px ${FF}`, color: C.n800, background: 'none' }} />
           </div>
           <button type="button" onClick={() => setFilterOpen((v) => !v)} style={{ height: 36, border: `1px solid ${C.n200}`, borderRadius: 4, background: C.n0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px', color: C.n700, font: `500 13px ${FF}`, cursor: 'pointer' }}>
-            Status: {filterLabel} <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
+            {t('submissions.statusFilter', { status: filterLabel })} <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
           </button>
           {filterOpen && (
             <div style={{ position: 'absolute', top: 44, left: 290, background: C.n0, border: `1px solid ${C.n200}`, borderRadius: 6, boxShadow: '0 2px 15px rgba(33,33,52,.1)', padding: 5, zIndex: 20, minWidth: 150 }}>
@@ -251,7 +254,7 @@ export function SubmissionsPage() {
                   onClick={() => { setStatusFilter(o.value); setFilterOpen(false); }}
                   style={{ padding: '8px 10px', borderRadius: 4, font: `500 13px ${FF}`, color: statusFilter === o.value ? C.p700 : C.n700, background: statusFilter === o.value ? C.p100 : 'transparent', fontWeight: statusFilter === o.value ? 600 : 500, cursor: 'pointer' }}
                 >
-                  {o.label}
+                  {t(o.label)}
                 </div>
               ))}
             </div>
@@ -259,14 +262,14 @@ export function SubmissionsPage() {
 
           <div style={{ marginLeft: 'auto', position: 'relative' }}>
             <button type="button" onClick={() => setColsOpen((v) => !v)} style={{ height: 36, border: `1px solid ${C.n200}`, borderRadius: 4, background: C.n0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px', color: C.n700, font: `500 13px ${FF}`, cursor: 'pointer' }}>
-              <Cog width="14px" height="14px" fill={C.n600} /> Columns <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
+              <Cog width="14px" height="14px" fill={C.n600} /> {t('submissions.columns')} <span style={{ color: C.n500, fontSize: 10 }}>▾</span>
             </button>
             {colsOpen && (
               <>
                 <div onClick={() => setColsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 19 }} />
                 <div style={{ position: 'absolute', top: 44, right: 0, background: C.n0, border: `1px solid ${C.n200}`, borderRadius: 6, boxShadow: '0 2px 15px rgba(33,33,52,.1)', padding: 5, zIndex: 20, minWidth: 200, maxHeight: 320, overflowY: 'auto' }}>
                   {columns.length === 0 ? (
-                    <div style={{ padding: '8px 10px', font: `400 12px ${FF}`, color: C.n500 }}>No columns yet.</div>
+                    <div style={{ padding: '8px 10px', font: `400 12px ${FF}`, color: C.n500 }}>{t('submissions.noColumns')}</div>
                   ) : columns.map((c) => {
                     const on = !hiddenCols.has(c.name);
                     return (
@@ -285,16 +288,16 @@ export function SubmissionsPage() {
         </div>
 
         {loading ? (
-          <Typography>Loading...</Typography>
+          <Typography>{t('common.loading')}</Typography>
         ) : visible.length === 0 ? (
           <div style={{ background: C.n0, border: `1px solid ${C.n150}`, borderRadius: 8, padding: '64px 20px', textAlign: 'center', boxShadow: '0 1px 4px rgba(33,33,52,.1)' }}>
             <div style={{ font: `700 18px ${FF}`, color: C.n900, marginBottom: 6 }}>
-              {submissions.length === 0 ? 'No submissions yet' : 'No submissions match'}
+              {submissions.length === 0 ? t('submissions.empty.title') : t('submissions.noMatch.title')}
             </div>
             <div style={{ font: `400 14px ${FF}`, color: C.n600 }}>
               {submissions.length === 0
-                ? 'Responses will appear here once the form is live and people start submitting.'
-                : 'Try a different status filter or search term.'}
+                ? t('submissions.empty.body')
+                : t('submissions.noMatch.body')}
             </div>
           </div>
         ) : (
@@ -303,11 +306,11 @@ export function SubmissionsPage() {
               <Thead>
                 <Tr>
                   <Th>
-                    <Checkbox aria-label="Select all" checked={someSelected ? 'indeterminate' : allSelected} onCheckedChange={toggleAll} />
+                    <Checkbox aria-label={t('common.selectAll')} checked={someSelected ? 'indeterminate' : allSelected} onCheckedChange={toggleAll} />
                   </Th>
-                  <Th><Typography variant="sigma">ID</Typography></Th>
-                  <Th><Typography variant="sigma">Status</Typography></Th>
-                  <Th><Typography variant="sigma">Received</Typography></Th>
+                  <Th><Typography variant="sigma">{t('submissions.col.id')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('submissions.col.status')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('submissions.received')}</Typography></Th>
                   {shownColumns.map((c) => (
                     <Th key={c.name}><Typography variant="sigma">{c.label}</Typography></Th>
                   ))}
@@ -317,7 +320,7 @@ export function SubmissionsPage() {
                 {visible.map((sub) => (
                   <Tr key={sub.id} onClick={() => setSelectedId(sub.id)} style={{ cursor: 'pointer' }}>
                     <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                      <Checkbox aria-label={`Select submission ${sub.id}`} checked={selectedIds.includes(sub.id)} onCheckedChange={() => toggleOne(sub.id)} />
+                      <Checkbox aria-label={t('submissions.selectOne', { id: sub.id })} checked={selectedIds.includes(sub.id)} onCheckedChange={() => toggleOne(sub.id)} />
                     </Td>
                     <Td><Typography textColor="neutral500">#{sub.id}</Typography></Td>
                     <Td><StatusBadge status={sub.status} /></Td>
@@ -349,13 +352,13 @@ export function SubmissionsPage() {
             {/* header */}
             <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.n150}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <h3 style={{ font: `800 20px ${FF}`, color: C.n900, margin: 0, whiteSpace: 'nowrap' }}>Submission #{selected.id}</h3>
-                <span style={{ font: `400 12px ${FF}`, color: C.n500 }}>{selIndex + 1} of {visible.length}</span>
+                <h3 style={{ font: `800 20px ${FF}`, color: C.n900, margin: 0, whiteSpace: 'nowrap' }}>{t('submissions.drawer.title', { id: selected.id })}</h3>
+                <span style={{ font: `400 12px ${FF}`, color: C.n500 }}>{t('submissions.drawer.position', { index: selIndex + 1, total: visible.length })}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <NavBtn label="Previous" disabled={selIndex <= 0} onClick={() => setSelectedId(visible[selIndex - 1].id)}>‹</NavBtn>
-                <NavBtn label="Next" disabled={selIndex >= visible.length - 1} onClick={() => setSelectedId(visible[selIndex + 1].id)}>›</NavBtn>
-                <button type="button" onClick={() => setSelectedId(null)} title="Close" style={{ width: 30, height: 30, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n500, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
+                <NavBtn label={t('common.previous')} disabled={selIndex <= 0} onClick={() => setSelectedId(visible[selIndex - 1].id)}>‹</NavBtn>
+                <NavBtn label={t('common.next')} disabled={selIndex >= visible.length - 1} onClick={() => setSelectedId(visible[selIndex + 1].id)}>›</NavBtn>
+                <button type="button" onClick={() => setSelectedId(null)} title={t('common.close')} style={{ width: 30, height: 30, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n500, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
               </div>
             </div>
 
@@ -363,16 +366,16 @@ export function SubmissionsPage() {
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                 <div style={{ flex: 1, background: C.n0, border: `1px solid ${C.n150}`, borderRadius: 6, padding: '9px 12px' }}>
-                  <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>Received</div>
+                  <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>{t('submissions.received')}</div>
                   <div style={{ font: `700 12px ${FF}`, color: C.n900, marginTop: 6 }}>{new Date(selected.createdAt).toLocaleString()}</div>
                 </div>
                 <div style={{ flex: 1, background: C.n0, border: `1px solid ${C.n150}`, borderRadius: 6, padding: '9px 12px' }}>
-                  <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>IP address</div>
+                  <div style={{ font: `500 11px ${FF}`, color: C.n500, textTransform: 'uppercase', letterSpacing: '.3px' }}>{t('submissions.ip')}</div>
                   <div style={{ font: `600 12px ui-monospace, Menlo, monospace`, color: C.n700, marginTop: 6, wordBreak: 'break-all' }}>{selected.ipAddress || '—'}</div>
                 </div>
               </div>
 
-              <div style={{ font: `600 12px ${FF}`, color: C.n700, marginBottom: 8 }}>Submitted data</div>
+              <div style={{ font: `600 12px ${FF}`, color: C.n700, marginBottom: 8 }}>{t('submissions.data')}</div>
               <div style={{ border: `1px solid ${C.n200}`, borderRadius: 6, overflow: 'hidden' }}>
                 {(() => {
                   // Always render what was actually stored in `data` — never hide an
@@ -384,7 +387,7 @@ export function SubmissionsPage() {
                   const entries = Object.entries(selected.data || {})
                     .sort((a, b) => (orderByName.get(a[0]) ?? 999) - (orderByName.get(b[0]) ?? 999));
                   return entries.length === 0 ? (
-                    <div style={{ padding: '12px 16px', font: `400 12px ${FF}`, color: C.n500 }}>No data.</div>
+                    <div style={{ padding: '12px 16px', font: `400 12px ${FF}`, color: C.n500 }}>{t('submissions.noData')}</div>
                   ) : entries.map(([name, raw], i) => {
                     const val = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
                     return (
@@ -400,10 +403,10 @@ export function SubmissionsPage() {
 
             {/* footer */}
             <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.n150}`, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button variant="danger-light" onClick={() => { setDeleteTarget(selected.id); setSelectedId(null); }}>Delete</Button>
-              <Button variant="secondary" onClick={() => setStatus(selected.id, 'archived')}>Archive</Button>
+              <Button variant="danger-light" onClick={() => { setDeleteTarget(selected.id); setSelectedId(null); }}>{t('common.delete')}</Button>
+              <Button variant="secondary" onClick={() => setStatus(selected.id, 'archived')}>{t('submissions.archive')}</Button>
               <Button onClick={() => setStatus(selected.id, selected.status === 'new' ? 'read' : 'new')}>
-                {selected.status === 'new' ? 'Mark as read' : 'Mark as new'}
+                {selected.status === 'new' ? t('submissions.markRead') : t('submissions.markNew')}
               </Button>
             </div>
           </div>
@@ -414,11 +417,11 @@ export function SubmissionsPage() {
       {deleteTarget && (
         <Dialog.Root open onOpenChange={() => setDeleteTarget(null)}>
           <Dialog.Content>
-            <Dialog.Header>Confirm delete</Dialog.Header>
-            <Dialog.Body><Typography>Delete this submission?</Typography></Dialog.Body>
+            <Dialog.Header>{t('list.confirmDelete')}</Dialog.Header>
+            <Dialog.Body><Typography>{t('submissions.deleteOne')}</Typography></Dialog.Body>
             <Dialog.Footer>
-              <Dialog.Cancel><Button variant="tertiary">Cancel</Button></Dialog.Cancel>
-              <Dialog.Action><Button variant="danger" onClick={handleDelete}>Delete</Button></Dialog.Action>
+              <Dialog.Cancel><Button variant="tertiary">{t('common.cancel')}</Button></Dialog.Cancel>
+              <Dialog.Action><Button variant="danger" onClick={handleDelete}>{t('common.delete')}</Button></Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>
         </Dialog.Root>
@@ -428,11 +431,11 @@ export function SubmissionsPage() {
       {bulkDeleteOpen && (
         <Dialog.Root open onOpenChange={() => setBulkDeleteOpen(false)}>
           <Dialog.Content>
-            <Dialog.Header>Confirm delete</Dialog.Header>
-            <Dialog.Body><Typography>Delete {selectedIds.length} selected submission(s)? This cannot be undone.</Typography></Dialog.Body>
+            <Dialog.Header>{t('list.confirmDelete')}</Dialog.Header>
+            <Dialog.Body><Typography>{t('submissions.deleteMany', { count: selectedIds.length })}</Typography></Dialog.Body>
             <Dialog.Footer>
-              <Dialog.Cancel><Button variant="tertiary">Cancel</Button></Dialog.Cancel>
-              <Dialog.Action><Button variant="danger" onClick={handleBulkDelete}>Delete {selectedIds.length}</Button></Dialog.Action>
+              <Dialog.Cancel><Button variant="tertiary">{t('common.cancel')}</Button></Dialog.Cancel>
+              <Dialog.Action><Button variant="danger" onClick={handleBulkDelete}>{t('list.deleteCount', { count: selectedIds.length })}</Button></Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>
         </Dialog.Root>

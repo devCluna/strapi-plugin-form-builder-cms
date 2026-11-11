@@ -3,6 +3,7 @@ import { FormField, FormSettings } from '../types';
 import { FormTheme, DEFAULT_THEME, resolveThemeVars, PaletteKey } from '../theme';
 import { FORM_CSS } from '../form-css';
 import { C, FF } from '../ui';
+import { useT } from '../utils/useT';
 
 interface Props {
   title: string;
@@ -37,6 +38,7 @@ function Palette({ colors, value, onSelect, onAdd, onDelete }: {
   colors: string[]; value: string;
   onSelect: (c: string) => void; onAdd: (c: string) => void; onDelete: (c: string) => void;
 }) {
+  const t = useT();
   const [hover, setHover] = useState<string | null>(null);
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -47,14 +49,14 @@ function Palette({ colors, value, onSelect, onAdd, onDelete }: {
             <button type="button" onClick={() => onSelect(c)} title={c}
               style={{ width: 34, height: 34, borderRadius: 8, background: c, cursor: 'pointer', border: on ? `2px solid ${C.p600}` : `1px solid ${C.n200}`, boxShadow: on ? `0 0 0 2px ${C.p200}` : 'none', outline: 'none', display: 'block' }} />
             {hover === c && colors.length > 1 && (
-              <button type="button" title="Remove color" onClick={(e) => { e.stopPropagation(); onDelete(c); }}
+              <button type="button" title={t('style.removeColor')} onClick={(e) => { e.stopPropagation(); onDelete(c); }}
                 style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: C.n800, color: '#fff', border: '1.5px solid #fff', font: `700 10px ${FF}`, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
             )}
           </div>
         );
       })}
       {/* add a color to the palette via the native picker */}
-      <label title="Add a color" style={{ position: 'relative', width: 34, height: 34, borderRadius: 8, cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.n0, border: `1px dashed ${C.n300}` }}>
+      <label title={t('style.addColor')} style={{ position: 'relative', width: 34, height: 34, borderRadius: 8, cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.n0, border: `1px dashed ${C.n300}` }}>
         <span style={{ font: `700 16px ${FF}`, color: C.n500, lineHeight: 1 }}>+</span>
         <input type="color" onChange={(e) => onAdd(e.target.value)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 'none', padding: 0 }} />
       </label>
@@ -73,10 +75,11 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 
 /* ── faithful preview: same .sfb-* classes + FORM_CSS as the embed ─────── */
 function PreviewInput({ field }: { field: FormField }) {
+  const t = useT();
   const ph = field.placeholder || '';
   if (field.type === 'textarea') return <textarea className="sfb-input" placeholder={ph} readOnly />;
   if (field.type === 'select') return (
-    <select className="sfb-input"><option>{ph || 'Select an option…'}</option></select>
+    <select className="sfb-input"><option>{ph || t('preview.selectOption')}</option></select>
   );
   if (field.type === 'radio' || field.type === 'checkbox-group') return (
     <div className="sfb-radio-group">
@@ -90,9 +93,10 @@ function PreviewInput({ field }: { field: FormField }) {
 }
 
 function PreviewForm({ title, description, fields, settings }: { title: string; description: string; fields: FormField[]; settings: FormSettings }) {
+  const t = useT();
   return (
     <>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{title || 'Untitled form'}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{title || t('style.untitled')}</h1>
       {description && <p style={{ fontSize: 14, color: 'var(--sfb-muted)', margin: '0 0 24px', lineHeight: 1.55 }}>{description}</p>}
       <form className="sfb-form" onSubmit={(e) => e.preventDefault()}>
         <div className="sfb-grid">
@@ -115,20 +119,21 @@ function PreviewForm({ title, description, fields, settings }: { title: string; 
             );
           })}
         </div>
-        {fields.length > 0 && <button type="submit" className="sfb-btn">{settings.submitButtonText || 'Submit'}</button>}
+        {fields.length > 0 && <button type="submit" className="sfb-btn">{settings.submitButtonText || t('defaults.submitButton')}</button>}
       </form>
     </>
   );
 }
 
 export function StyleMode({ title, description, fields, settings, theme, onChange }: Props) {
+  const t = useT();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
-  const t = theme;
-  const set = (p: Partial<FormTheme>) => onChange({ ...t, ...p });
-  const vars = resolveThemeVars(t) as React.CSSProperties;
+  const th = theme;
+  const set = (p: Partial<FormTheme>) => onChange({ ...th, ...p });
+  const vars = resolveThemeVars(th) as React.CSSProperties;
 
   // editable, persisted color palettes
-  const pal = t.palettes || DEFAULT_THEME.palettes;
+  const pal = th.palettes || DEFAULT_THEME.palettes;
   const selColor = (key: PaletteKey, c: string) => set({ [key]: c } as Partial<FormTheme>);
   const addColor = (key: PaletteKey, c: string) => {
     const list = pal[key];
@@ -141,53 +146,53 @@ export function StyleMode({ title, description, fields, settings, theme, onChang
     <div style={{ flex: 1, display: 'flex', minHeight: 0, alignSelf: 'stretch' }}>
       {/* sidebar */}
       <div style={{ width: 300, minWidth: 300, background: C.n0, borderRight: `1px solid ${C.n150}`, overflowY: 'auto', padding: '18px 20px' }}>
-        <div style={{ font: `800 18px ${FF}`, color: C.n900 }}>Style</div>
-        <div style={{ font: `400 12px ${FF}`, color: C.n500, margin: '4px 0 4px', lineHeight: 1.5 }}>Design the public form — changes preview live.</div>
+        <div style={{ font: `800 18px ${FF}`, color: C.n900 }}>{t('style.title')}</div>
+        <div style={{ font: `400 12px ${FF}`, color: C.n500, margin: '4px 0 4px', lineHeight: 1.5 }}>{t('style.subtitle')}</div>
 
-        <Group title="Brand">
+        <Group title={t('style.group.brand')}>
           <div>
-            <label style={ctlLbl}>Accent color</label>
-            <Palette colors={pal.accent} value={t.accent} onSelect={(c) => selColor('accent', c)} onAdd={(c) => addColor('accent', c)} onDelete={(c) => delColor('accent', c)} />
+            <label style={ctlLbl}>{t('style.accent')}</label>
+            <Palette colors={pal.accent} value={th.accent} onSelect={(c) => selColor('accent', c)} onAdd={(c) => addColor('accent', c)} onDelete={(c) => delColor('accent', c)} />
           </div>
           <div>
-            <label style={ctlLbl}>Font</label>
-            <Seg value={t.font} onChange={(v) => set({ font: v })} options={[{ v: 'sans', label: 'Sans' }, { v: 'serif', label: 'Serif' }, { v: 'round', label: 'Round' }, { v: 'mono', label: 'Mono' }]} />
-          </div>
-        </Group>
-
-        <Group title="Background">
-          <div>
-            <label style={ctlLbl}>Form card</label>
-            <Palette colors={pal.cardBg} value={t.cardBg} onSelect={(c) => selColor('cardBg', c)} onAdd={(c) => addColor('cardBg', c)} onDelete={(c) => delColor('cardBg', c)} />
-          </div>
-          <div>
-            <label style={ctlLbl}>Page</label>
-            <Palette colors={pal.pageBg} value={t.pageBg} onSelect={(c) => selColor('pageBg', c)} onAdd={(c) => addColor('pageBg', c)} onDelete={(c) => delColor('pageBg', c)} />
+            <label style={ctlLbl}>{t('style.font')}</label>
+            <Seg value={th.font} onChange={(v) => set({ font: v })} options={[{ v: 'sans', label: t('style.opt.sans') }, { v: 'serif', label: t('style.opt.serif') }, { v: 'round', label: t('style.opt.round') }, { v: 'mono', label: t('style.opt.mono') }]} />
           </div>
         </Group>
 
-        <Group title="Fields">
-          <div><label style={ctlLbl}>Corners</label><Seg value={t.corners} onChange={(v) => set({ corners: v })} options={[{ v: 'sharp', label: 'Sharp' }, { v: 'rounded', label: 'Rounded' }, { v: 'pill', label: 'Pill' }]} /></div>
-          <div><label style={ctlLbl}>Style</label><Seg value={t.fieldStyle} onChange={(v) => set({ fieldStyle: v })} options={[{ v: 'outline', label: 'Outline' }, { v: 'filled', label: 'Filled' }, { v: 'underline', label: 'Underline' }]} /></div>
-          <div><label style={ctlLbl}>Label weight</label><Seg value={t.labelWeight} onChange={(v) => set({ labelWeight: v })} options={[{ v: 'regular', label: 'Regular' }, { v: 'medium', label: 'Medium' }, { v: 'bold', label: 'Bold' }]} /></div>
+        <Group title={t('style.group.background')}>
+          <div>
+            <label style={ctlLbl}>{t('style.formCard')}</label>
+            <Palette colors={pal.cardBg} value={th.cardBg} onSelect={(c) => selColor('cardBg', c)} onAdd={(c) => addColor('cardBg', c)} onDelete={(c) => delColor('cardBg', c)} />
+          </div>
+          <div>
+            <label style={ctlLbl}>{t('style.page')}</label>
+            <Palette colors={pal.pageBg} value={th.pageBg} onSelect={(c) => selColor('pageBg', c)} onAdd={(c) => addColor('pageBg', c)} onDelete={(c) => delColor('pageBg', c)} />
+          </div>
         </Group>
 
-        <Group title="Button">
-          <div><label style={ctlLbl}>Style</label><Seg value={t.buttonStyle} onChange={(v) => set({ buttonStyle: v })} options={[{ v: 'solid', label: 'Solid' }, { v: 'outline', label: 'Outline' }]} /></div>
-          <div><label style={ctlLbl}>Width</label><Seg value={t.buttonWidth} onChange={(v) => set({ buttonWidth: v })} options={[{ v: 'full', label: 'Full' }, { v: 'auto', label: 'Auto' }]} /></div>
+        <Group title={t('style.group.fields')}>
+          <div><label style={ctlLbl}>{t('style.corners')}</label><Seg value={th.corners} onChange={(v) => set({ corners: v })} options={[{ v: 'sharp', label: t('style.opt.sharp') }, { v: 'rounded', label: t('style.opt.rounded') }, { v: 'pill', label: t('style.opt.pill') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.fieldStyle')}</label><Seg value={th.fieldStyle} onChange={(v) => set({ fieldStyle: v })} options={[{ v: 'outline', label: t('style.opt.outline') }, { v: 'filled', label: t('style.opt.filled') }, { v: 'underline', label: t('style.opt.underline') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.labelWeight')}</label><Seg value={th.labelWeight} onChange={(v) => set({ labelWeight: v })} options={[{ v: 'regular', label: t('style.opt.regular') }, { v: 'medium', label: t('style.opt.medium') }, { v: 'bold', label: t('style.opt.bold') }]} /></div>
         </Group>
 
-        <Group title="Layout">
-          <div><label style={ctlLbl}>Form width</label><Seg value={t.formWidth} onChange={(v) => set({ formWidth: v })} options={[{ v: 'narrow', label: 'Narrow' }, { v: 'regular', label: 'Regular' }, { v: 'wide', label: 'Wide' }]} /></div>
-          <div><label style={ctlLbl}>Spacing</label><Seg value={t.spacing} onChange={(v) => set({ spacing: v })} options={[{ v: 'compact', label: 'Compact' }, { v: 'cozy', label: 'Cozy' }, { v: 'roomy', label: 'Roomy' }]} /></div>
-          <div><label style={ctlLbl}>Card shadow</label><Seg value={t.shadow} onChange={(v) => set({ shadow: v })} options={[{ v: 'none', label: 'None' }, { v: 'soft', label: 'Soft' }, { v: 'strong', label: 'Strong' }]} /></div>
-          <div><label style={ctlLbl}>Card border</label><Seg value={t.cardBorder} onChange={(v) => set({ cardBorder: v })} options={[{ v: 'none', label: 'None' }, { v: 'hairline', label: 'Hairline' }, { v: 'bold', label: 'Bold' }]} /></div>
-          <div><label style={ctlLbl}>Card corners</label><Seg value={t.cardCorners} onChange={(v) => set({ cardCorners: v })} options={[{ v: 'sharp', label: 'Sharp' }, { v: 'rounded', label: 'Rounded' }, { v: 'round', label: 'Round' }]} /></div>
-          <div><label style={ctlLbl}>Form placement</label><Seg value={t.placement} onChange={(v) => set({ placement: v })} options={[{ v: 'top', label: 'Top' }, { v: 'center', label: 'Center' }]} /></div>
+        <Group title={t('style.group.button')}>
+          <div><label style={ctlLbl}>{t('style.fieldStyle')}</label><Seg value={th.buttonStyle} onChange={(v) => set({ buttonStyle: v })} options={[{ v: 'solid', label: t('style.opt.solid') }, { v: 'outline', label: t('style.opt.outline') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.width')}</label><Seg value={th.buttonWidth} onChange={(v) => set({ buttonWidth: v })} options={[{ v: 'full', label: t('style.opt.full') }, { v: 'auto', label: t('style.opt.auto') }]} /></div>
+        </Group>
+
+        <Group title={t('style.group.layout')}>
+          <div><label style={ctlLbl}>{t('style.formWidth')}</label><Seg value={th.formWidth} onChange={(v) => set({ formWidth: v })} options={[{ v: 'narrow', label: t('style.opt.narrow') }, { v: 'regular', label: t('style.opt.regular') }, { v: 'wide', label: t('style.opt.wide') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.spacing')}</label><Seg value={th.spacing} onChange={(v) => set({ spacing: v })} options={[{ v: 'compact', label: t('style.opt.compact') }, { v: 'cozy', label: t('style.opt.cozy') }, { v: 'roomy', label: t('style.opt.roomy') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.cardShadow')}</label><Seg value={th.shadow} onChange={(v) => set({ shadow: v })} options={[{ v: 'none', label: t('style.opt.none') }, { v: 'soft', label: t('style.opt.soft') }, { v: 'strong', label: t('style.opt.strong') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.cardBorder')}</label><Seg value={th.cardBorder} onChange={(v) => set({ cardBorder: v })} options={[{ v: 'none', label: t('style.opt.none') }, { v: 'hairline', label: t('style.opt.hairline') }, { v: 'bold', label: t('style.opt.bold') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.cardCorners')}</label><Seg value={th.cardCorners} onChange={(v) => set({ cardCorners: v })} options={[{ v: 'sharp', label: t('style.opt.sharp') }, { v: 'rounded', label: t('style.opt.rounded') }, { v: 'round', label: t('style.opt.round') }]} /></div>
+          <div><label style={ctlLbl}>{t('style.placement')}</label><Seg value={th.placement} onChange={(v) => set({ placement: v })} options={[{ v: 'top', label: t('style.opt.top') }, { v: 'center', label: t('style.opt.center') }]} /></div>
         </Group>
 
         <div style={{ padding: '18px 0' }}>
-          <button type="button" onClick={() => onChange({ ...DEFAULT_THEME })} style={{ width: '100%', height: 38, borderRadius: 6, border: `1px solid ${C.n200}`, background: C.n0, color: C.n800, font: `600 13px ${FF}`, cursor: 'pointer' }}>Reset to default theme</button>
+          <button type="button" onClick={() => onChange({ ...DEFAULT_THEME })} style={{ width: '100%', height: 38, borderRadius: 6, border: `1px solid ${C.n200}`, background: C.n0, color: C.n800, font: `600 13px ${FF}`, cursor: 'pointer' }}>{t('style.reset')}</button>
         </div>
       </div>
 
@@ -195,18 +200,18 @@ export function StyleMode({ title, description, fields, settings, theme, onChang
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: C.n100 }}>
         <div style={{ height: 46, borderBottom: `1px solid ${C.n150}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flex: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 12px ${FF}`, color: C.n600 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.suc500 }} />Live preview
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.suc500 }} />{t('style.livePreview')}
           </div>
           <div style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 6, overflow: 'hidden' }}>
             {(['desktop', 'mobile'] as const).map((d) => (
-              <button key={d} type="button" onClick={() => setDevice(d)} style={{ height: 28, padding: '0 12px', border: 'none', borderLeft: d === 'mobile' ? `1px solid ${C.n200}` : 'none', background: device === d ? C.p600 : C.n0, color: device === d ? '#fff' : C.n700, font: `600 12px ${FF}`, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
+              <button key={d} type="button" onClick={() => setDevice(d)} style={{ height: 28, padding: '0 12px', border: 'none', borderLeft: d === 'mobile' ? `1px solid ${C.n200}` : 'none', background: device === d ? C.p600 : C.n0, color: device === d ? '#fff' : C.n700, font: `600 12px ${FF}`, cursor: 'pointer' }}>{t(`style.device.${d}`)}</button>
             ))}
           </div>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 28, display: 'flex', justifyContent: 'center', alignItems: 'var(--sfb-page-align, flex-start)', background: 'var(--sfb-page-bg, #f5f5f9)', ...vars }}>
           <style dangerouslySetInnerHTML={{ __html: FORM_CSS }} />
           <div
-            data-sfb-fields={t.fieldStyle}
+            data-sfb-fields={th.fieldStyle}
             style={{
               ...vars,
               width: '100%', maxWidth: device === 'mobile' ? 380 : 'var(--sfb-form-width, 600px)',

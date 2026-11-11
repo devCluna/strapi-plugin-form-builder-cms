@@ -24,6 +24,7 @@ import { useFormsApi } from '../api';
 import { Form } from '../types';
 import { PLUGIN_ID } from '../pluginId';
 import { TEMPLATES, FormTemplate } from '../templates';
+import { useT } from '../utils/useT';
 
 const TEMPLATE_ICONS: Record<string, React.ComponentType<any>> = {
   Mail, BulletList, Message, File, Calendar, Feather,
@@ -38,6 +39,7 @@ const C = {
 };
 
 function TemplateCard({ tpl, onPick }: { tpl: FormTemplate; onPick: (t: FormTemplate) => void }) {
+  const t = useT();
   const Icon = TEMPLATE_ICONS[tpl.icon] || File;
   const [hover, setHover] = useState(false);
   return (
@@ -56,13 +58,14 @@ function TemplateCard({ tpl, onPick }: { tpl: FormTemplate; onPick: (t: FormTemp
       <span style={{ color: C.p600, marginBottom: 8, display: 'inline-flex' }}>
         <Icon width="1.4rem" height="1.4rem" fill={C.p600} />
       </span>
-      <span style={{ font: `700 14px var(--ff, -apple-system, sans-serif)`, color: C.n900 }}>{tpl.name}</span>
-      <span style={{ font: `400 12px var(--ff, -apple-system, sans-serif)`, color: C.n600 }}>{tpl.desc}</span>
+      <span style={{ font: `700 14px var(--ff, -apple-system, sans-serif)`, color: C.n900 }}>{t(`templates.${tpl.key}.name`)}</span>
+      <span style={{ font: `400 12px var(--ff, -apple-system, sans-serif)`, color: C.n600 }}>{t(`templates.${tpl.key}.desc`)}</span>
     </button>
   );
 }
 
 export function FormListPage() {
+  const t = useT();
   const navigate = useNavigate();
   const api = useFormsApi();
   const [forms, setForms] = useState<Form[]>([]);
@@ -126,7 +129,7 @@ export function FormListPage() {
   const pickTemplate = (tpl: FormTemplate) => {
     setPickerOpen(false);
     navigate(`/plugins/${PLUGIN_ID}/builder/new`, {
-      state: { templateFields: tpl.fields(), templateTitle: tpl.title },
+      state: { templateFields: tpl.fields(t), templateTitle: t(`templates.${tpl.key}.title`) },
     });
   };
 
@@ -148,32 +151,32 @@ export function FormListPage() {
     <Box padding={8}>
       <Flex justifyContent="space-between" alignItems="flex-start" marginBottom={6}>
         <Box>
-          <Typography variant="alpha" as="h1">Forms</Typography>
+          <Typography variant="alpha" as="h1">{t('list.title')}</Typography>
           <Box marginTop={1}>
             <Typography variant="epsilon" textColor="neutral600">
-              Build, publish and embed forms on any site.
+              {t('list.subtitle')}
             </Typography>
           </Box>
         </Box>
         <Button startIcon={<Plus />} onClick={() => setPickerOpen(true)}>
-          Create form
+          {t('list.create')}
         </Button>
       </Flex>
 
       {loading ? (
-        <Typography>Loading...</Typography>
+        <Typography>{t('common.loading')}</Typography>
       ) : forms.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '30px 20px 44px', margin: '0 auto' }}>
           <div style={{ width: 72, height: 72, marginBottom: 20, borderRadius: 16, background: C.p100, border: `1px solid ${C.p200}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.p500 }}>
             <File width="2.1rem" height="2.1rem" fill={C.p500} />
           </div>
-          <div style={{ font: '800 24px var(--ff, -apple-system, sans-serif)', color: C.n900 }}>Build your first form</div>
+          <div style={{ font: '800 24px var(--ff, -apple-system, sans-serif)', color: C.n900 }}>{t('list.empty.title')}</div>
           <p style={{ font: '400 15px var(--ff, -apple-system, sans-serif)', color: C.n600, lineHeight: 1.6, maxWidth: 460, margin: '10px auto 26px' }}>
-            Drag fields onto a canvas, set validation, then publish. Embed on any site or share a public link.
+            {t('list.empty.body')}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', maxWidth: 520, marginBottom: 20 }}>
             <div style={{ flex: 1, height: 1, background: C.n200 }} />
-            <span style={{ font: '600 11px var(--ff, -apple-system, sans-serif)', letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>Start from a template</span>
+            <span style={{ font: '600 11px var(--ff, -apple-system, sans-serif)', letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>{t('list.empty.templates')}</span>
             <div style={{ flex: 1, height: 1, background: C.n200 }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, width: '100%', maxWidth: 660 }}>
@@ -189,14 +192,14 @@ export function FormListPage() {
                 value={query}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
                 onClear={() => setQuery('')}
-                clearLabel="Clear search"
-                placeholder="Search forms"
+                clearLabel={t('list.search.clear')}
+                placeholder={t('list.search.placeholder')}
               >
-                Search forms
+                {t('list.search.placeholder')}
               </Searchbar>
             </Box>
             <Typography variant="pi" textColor="neutral600">
-              {visibleForms.length} {visibleForms.length === 1 ? 'form' : 'forms'}
+              {t('list.count', { count: visibleForms.length })}
             </Typography>
           </Flex>
 
@@ -210,7 +213,7 @@ export function FormListPage() {
               hasRadius
             >
               <Typography variant="pi" fontWeight="semiBold" textColor="primary700">
-                {selectedIds.length} selected
+                {t('list.selected', { count: selectedIds.length })}
               </Typography>
               <Flex gap={2}>
                 <Button
@@ -219,10 +222,10 @@ export function FormListPage() {
                   startIcon={<Trash />}
                   onClick={() => setBulkDeleteOpen(true)}
                 >
-                  Delete selected
+                  {t('list.deleteSelected')}
                 </Button>
                 <Button variant="tertiary" size="S" onClick={() => setSelectedIds([])}>
-                  Clear
+                  {t('common.clear')}
                 </Button>
               </Flex>
             </Flex>
@@ -231,7 +234,7 @@ export function FormListPage() {
           {visibleForms.length === 0 ? (
             <Box padding={10} background="neutral100" hasRadius textAlign="center">
               <Typography variant="beta" textColor="neutral600">
-                No forms match “{query}”
+                {t('list.noMatch', { query })}
               </Typography>
             </Box>
           ) : (
@@ -240,16 +243,16 @@ export function FormListPage() {
                 <Tr>
                   <Th>
                     <Checkbox
-                      aria-label="Select all"
+                      aria-label={t('common.selectAll')}
                       checked={someSelected ? 'indeterminate' : allSelected}
                       onCheckedChange={toggleAll}
                     />
                   </Th>
-                  <Th><Typography variant="sigma">Title</Typography></Th>
-                  <Th><Typography variant="sigma">Slug</Typography></Th>
-                  <Th><Typography variant="sigma">Submissions</Typography></Th>
-                  <Th><Typography variant="sigma">Created</Typography></Th>
-                  <Th><Typography variant="sigma">Actions</Typography></Th>
+                  <Th><Typography variant="sigma">{t('list.col.title')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('list.col.slug')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('list.col.submissions')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('list.col.created')}</Typography></Th>
+                  <Th><Typography variant="sigma">{t('list.col.actions')}</Typography></Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -259,7 +262,7 @@ export function FormListPage() {
                     <Tr key={form.id}>
                       <Td onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Checkbox
-                          aria-label={`Select ${form.title}`}
+                          aria-label={t('list.selectForm', { title: form.title })}
                           checked={selectedIds.includes(form.id)}
                           onCheckedChange={() => toggleOne(form.id)}
                         />
@@ -292,26 +295,26 @@ export function FormListPage() {
                       <Td>
                         <Flex gap={1}>
                           <IconButton
-                            label="Edit"
+                            label={t('common.edit')}
                             onClick={() => navigate(`/plugins/${PLUGIN_ID}/builder/${form.id}`)}
                           >
                             <Pencil />
                           </IconButton>
                           <IconButton
-                            label="View submissions"
+                            label={t('list.viewSubmissions')}
                             onClick={() => navigate(`/plugins/${PLUGIN_ID}/submissions/${form.id}`)}
                           >
                             <Eye />
                           </IconButton>
                           {form.publishedAt && form.settings?.publicPage && (
-                            <IconButton label="Open live form" onClick={() => openLive(form)}>
+                            <IconButton label={t('common.openLive')} onClick={() => openLive(form)}>
                               <ExternalLink />
                             </IconButton>
                           )}
-                          <IconButton label="Duplicate" onClick={() => handleDuplicate(form.id)}>
+                          <IconButton label={t('common.duplicate')} onClick={() => handleDuplicate(form.id)}>
                             <Duplicate />
                           </IconButton>
-                          <IconButton label="Delete" onClick={() => setDeleteTarget(form.id)}>
+                          <IconButton label={t('common.delete')} onClick={() => setDeleteTarget(form.id)}>
                             <Trash />
                           </IconButton>
                         </Flex>
@@ -329,18 +332,18 @@ export function FormListPage() {
       {pickerOpen && (
         <Dialog.Root open onOpenChange={() => setPickerOpen(false)}>
           <Dialog.Content>
-            <Dialog.Header>Create a form</Dialog.Header>
+            <Dialog.Header>{t('list.picker.title')}</Dialog.Header>
             <Dialog.Body>
               <Box marginBottom={4}>
                 <Typography variant="omega" textColor="neutral600">
-                  Start from a template or a blank form — you can change everything later.
+                  {t('list.picker.body')}
                 </Typography>
               </Box>
               {templateGrid}
             </Dialog.Body>
             <Dialog.Footer>
               <Dialog.Cancel>
-                <Button variant="tertiary">Cancel</Button>
+                <Button variant="tertiary">{t('common.cancel')}</Button>
               </Dialog.Cancel>
             </Dialog.Footer>
           </Dialog.Content>
@@ -350,16 +353,16 @@ export function FormListPage() {
       {deleteTarget && (
         <Dialog.Root open onOpenChange={() => setDeleteTarget(null)}>
           <Dialog.Content>
-            <Dialog.Header>Confirm delete</Dialog.Header>
+            <Dialog.Header>{t('list.confirmDelete')}</Dialog.Header>
             <Dialog.Body>
-              <Typography>Are you sure you want to delete this form?</Typography>
+              <Typography>{t('list.deleteOne')}</Typography>
             </Dialog.Body>
             <Dialog.Footer>
               <Dialog.Cancel>
-                <Button variant="tertiary">Cancel</Button>
+                <Button variant="tertiary">{t('common.cancel')}</Button>
               </Dialog.Cancel>
               <Dialog.Action>
-                <Button variant="danger" onClick={handleDelete}>Delete</Button>
+                <Button variant="danger" onClick={handleDelete}>{t('common.delete')}</Button>
               </Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>
@@ -369,16 +372,16 @@ export function FormListPage() {
       {bulkDeleteOpen && (
         <Dialog.Root open onOpenChange={() => setBulkDeleteOpen(false)}>
           <Dialog.Content>
-            <Dialog.Header>Confirm delete</Dialog.Header>
+            <Dialog.Header>{t('list.confirmDelete')}</Dialog.Header>
             <Dialog.Body>
-              <Typography>Delete {selectedIds.length} selected form(s)? This also removes their submissions and cannot be undone.</Typography>
+              <Typography>{t('list.deleteMany', { count: selectedIds.length })}</Typography>
             </Dialog.Body>
             <Dialog.Footer>
               <Dialog.Cancel>
-                <Button variant="tertiary">Cancel</Button>
+                <Button variant="tertiary">{t('common.cancel')}</Button>
               </Dialog.Cancel>
               <Dialog.Action>
-                <Button variant="danger" onClick={handleBulkDelete}>Delete {selectedIds.length}</Button>
+                <Button variant="danger" onClick={handleBulkDelete}>{t('list.deleteCount', { count: selectedIds.length })}</Button>
               </Dialog.Action>
             </Dialog.Footer>
           </Dialog.Content>

@@ -18,50 +18,46 @@ export const C = {
 
 export const FF = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
 
+export type FieldCategory = 'basic' | 'choice' | 'datetime' | 'content';
+
 export interface FieldMeta {
   type: FieldType;
   name: string;
-  cat: string;
+  cat: FieldCategory;
   deco?: boolean;
 }
 
 // Palette structure & labels mirror the prototype (4 categories).
-export const FIELD_CATEGORIES: { cat: string; items: FieldMeta[] }[] = [
-  { cat: 'Basic', items: [
-    { type: 'text', name: 'Text', cat: 'Basic' },
-    { type: 'email', name: 'Email', cat: 'Basic' },
-    { type: 'number', name: 'Number', cat: 'Basic' },
-    { type: 'phone', name: 'Phone', cat: 'Basic' },
-    { type: 'url', name: 'URL', cat: 'Basic' },
-    { type: 'password', name: 'Password', cat: 'Basic' },
-    { type: 'textarea', name: 'Textarea', cat: 'Basic' },
-    { type: 'hidden', name: 'Hidden', cat: 'Basic' },
+export const FIELD_CATEGORIES: { cat: FieldCategory; items: FieldMeta[] }[] = [
+  { cat: 'basic', items: [
+    { type: 'text', name: 'Text', cat: 'basic' },
+    { type: 'email', name: 'Email', cat: 'basic' },
+    { type: 'number', name: 'Number', cat: 'basic' },
+    { type: 'phone', name: 'Phone', cat: 'basic' },
+    { type: 'url', name: 'URL', cat: 'basic' },
+    { type: 'password', name: 'Password', cat: 'basic' },
+    { type: 'textarea', name: 'Textarea', cat: 'basic' },
+    { type: 'hidden', name: 'Hidden', cat: 'basic' },
   ]},
-  { cat: 'Choice', items: [
-    { type: 'select', name: 'Select', cat: 'Choice' },
-    { type: 'radio', name: 'Radio', cat: 'Choice' },
-    { type: 'checkbox', name: 'Checkbox', cat: 'Choice' },
-    { type: 'checkbox-group', name: 'Checkboxes', cat: 'Choice' },
+  { cat: 'choice', items: [
+    { type: 'select', name: 'Select', cat: 'choice' },
+    { type: 'radio', name: 'Radio', cat: 'choice' },
+    { type: 'checkbox', name: 'Checkbox', cat: 'choice' },
+    { type: 'checkbox-group', name: 'Checkboxes', cat: 'choice' },
   ]},
-  { cat: 'Date & time', items: [
-    { type: 'date', name: 'Date', cat: 'Date & time' },
-    { type: 'time', name: 'Time', cat: 'Date & time' },
+  { cat: 'datetime', items: [
+    { type: 'date', name: 'Date', cat: 'datetime' },
+    { type: 'time', name: 'Time', cat: 'datetime' },
   ]},
-  { cat: 'Content', items: [
-    { type: 'heading', name: 'Heading', cat: 'Content', deco: true },
-    { type: 'paragraph', name: 'Paragraph', cat: 'Content', deco: true },
-    { type: 'divider', name: 'Divider', cat: 'Content', deco: true },
+  { cat: 'content', items: [
+    { type: 'heading', name: 'Heading', cat: 'content', deco: true },
+    { type: 'paragraph', name: 'Paragraph', cat: 'content', deco: true },
+    { type: 'divider', name: 'Divider', cat: 'content', deco: true },
   ]},
 ];
 
 export const DECORATIVE: FieldType[] = ['heading', 'paragraph', 'divider'];
 export const isDecorative = (t: FieldType) => DECORATIVE.includes(t);
-
-// Human type name for canvas rows ("— text", "— textarea", …)
-const TYPE_NAMES: Partial<Record<FieldType, string>> = {
-  'checkbox-group': 'checkboxes',
-};
-export const typeName = (t: FieldType) => TYPE_NAMES[t] || t;
 
 // Monochrome glyph per field type. Uses @strapi/icons where a match exists and
 // styled letters for the ones the icon set has no clean equivalent for (T/H/¶/—/◉).

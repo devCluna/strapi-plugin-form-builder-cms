@@ -18,7 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Trash } from '@strapi/icons';
 import { FormField } from '../types';
-import { C, FF, isDecorative, typeName } from '../ui';
+import { C, FF, isDecorative } from '../ui';
+import { useT } from '../utils/useT';
 
 function DragDots({ active }: { active: boolean }) {
   return (
@@ -43,6 +44,7 @@ function SortableFieldRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: field.id });
+  const t = useT();
   const deco = isDecorative(field.type);
 
   return (
@@ -68,18 +70,18 @@ function SortableFieldRow({
         <DragDots active={selected} />
       </span>
       <div style={{ flex: 1, font: `600 15px ${FF}`, color: C.n900, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label || '(no label)'}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label || t('dropzone.noLabel')}</span>
         {field.required && <span style={{ color: C.dng600, fontWeight: 700 }}>*</span>}
-        <span style={{ fontWeight: 400, color: C.n500 }}>— {typeName(field.type)}</span>
+        <span style={{ fontWeight: 400, color: C.n500 }}>— {t(`field.${field.type}`)}</span>
       </div>
       {deco ? (
-        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.wrn700, background: C.wrn100, border: '1px solid #f2d9a6', borderRadius: 4, padding: '3px 7px', flex: 'none' }}>Deco</span>
+        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.wrn700, background: C.wrn100, border: '1px solid #f2d9a6', borderRadius: 4, padding: '3px 7px', flex: 'none' }}>{t('dropzone.deco')}</span>
       ) : (
-        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.n600, background: C.n100, border: `1px solid ${C.n200}`, borderRadius: 4, padding: '3px 7px', flex: 'none' }}>{field.width}</span>
+        <span style={{ font: `600 10px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', color: C.n600, background: C.n100, border: `1px solid ${C.n200}`, borderRadius: 4, padding: '3px 7px', flex: 'none' }}>{t(`fieldSettings.${field.width}`)}</span>
       )}
       <button
         type="button"
-        title="Delete field"
+        title={t('dropzone.delete')}
         onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDelete(); }}
         style={{ width: 30, height: 30, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n400, border: 'none', background: 'none', cursor: 'pointer', flex: 'none' }}
       >

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Trash } from '@strapi/icons';
 import { FormField, FieldOption, ValidationRule } from '../types';
-import { C, FF, isDecorative, typeName } from '../ui';
+import { C, FF, isDecorative } from '../ui';
+import { useT } from '../utils/useT';
 
 interface Props {
   field: FormField;
@@ -11,16 +12,12 @@ interface Props {
 // Which settings apply to which field type (drives conditional visibility).
 const PLACEHOLDER_TYPES = ['text', 'email', 'number', 'phone', 'url', 'password', 'textarea', 'select'];
 
-const RULE_LABELS: Record<string, string> = {
-  minLength: 'Min. length', maxLength: 'Max. length',
-  min: 'Min. value', max: 'Max. value',
-  email: 'Email', url: 'URL', pattern: 'Pattern (regex)',
-};
-
 // Extra validation rules (beyond Required) that make sense for a given type.
 // email/url/number already auto-validate their format by type, so those rules
 // are only offered where you'd validate free text.
-function ruleTypesFor(type: string): string[] {
+type RuleType = 'minLength' | 'maxLength' | 'min' | 'max' | 'email' | 'url' | 'pattern';
+
+function ruleTypesFor(type: string): RuleType[] {
   if (type === 'number') return ['min', 'max'];
   if (type === 'text' || type === 'textarea') return ['minLength', 'maxLength', 'pattern', 'email', 'url'];
   if (['email', 'url', 'phone', 'password'].includes(type)) return ['minLength', 'maxLength', 'pattern'];
@@ -83,19 +80,21 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 function Seg({ value, onChange }: { value: 'full' | 'half'; onChange: (v: 'full' | 'half') => void }) {
+  const t = useT();
   const cell = (active: boolean): React.CSSProperties => ({
     flex: 1, textAlign: 'center', padding: '8px 0', font: `600 12px ${FF}`, cursor: 'pointer',
     color: active ? '#fff' : C.n600, background: active ? C.p600 : 'transparent', border: 'none',
   });
   return (
     <div style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 4, overflow: 'hidden' }}>
-      <button type="button" style={cell(value === 'half')} onClick={() => onChange('half')}>Half</button>
-      <button type="button" style={cell(value === 'full')} onClick={() => onChange('full')}>Full</button>
+      <button type="button" style={cell(value === 'half')} onClick={() => onChange('half')}>{t('fieldSettings.half')}</button>
+      <button type="button" style={cell(value === 'full')} onClick={() => onChange('full')}>{t('fieldSettings.full')}</button>
     </div>
   );
 }
 
 export function FieldSettingsPanel({ field, onChange }: Props) {
+  const t = useT();
   ensureStyle();
   const deco = isDecorative(field.type);
   const isHidden = field.type === 'hidden';
@@ -112,7 +111,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
   const ruleTypes = ruleTypesFor(field.type);
   const addValidation = () => {
     const used = field.validation.map((r) => r.type);
-    const next = ruleTypes.find((t) => !used.includes(t));
+    const next = ruleTypes.find((r) => !used.includes(r));
     if (!next) return;
     update({ validation: [...field.validation, { type: next }] });
   };
@@ -131,7 +130,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
     update({ validation: msg ? [...rest, { type: 'required', message: msg }] : rest });
   };
 
-  const kicker = `${typeName(field.type)} field`.toUpperCase();
+  const kicker = t('fieldSettings.kicker', { type: t(`field.${field.type}`) });
 
   const tabBtn = (id: 'general' | 'validation', label: string) => (
     <button
@@ -147,66 +146,66 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
     <div style={{ width: 328, minWidth: 328, background: C.n0, borderLeft: `1px solid ${C.n150}`, overflowY: 'auto', alignSelf: 'stretch', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '16px 18px 0' }}>
         <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.p600, marginBottom: 5 }}>{kicker}</div>
-        <div style={{ font: `700 16px ${FF}`, color: C.n900 }}>Field settings</div>
+        <div style={{ font: `700 16px ${FF}`, color: C.n900 }}>{t('fieldSettings.title')}</div>
       </div>
 
       <div style={{ display: 'flex', gap: 2, padding: '12px 18px 0', borderBottom: `1px solid ${C.n150}` }}>
-        {tabBtn('general', 'General')}
-        {!deco && !isHidden && tabBtn('validation', 'Validation')}
+        {tabBtn('general', t('fieldSettings.general'))}
+        {!deco && !isHidden && tabBtn('validation', t('fieldSettings.validation'))}
       </div>
 
       {isHidden && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
-            A hidden tracking field. It never shows on the form but its value is stored with every submission — ideal for UTM parameters, referrers or campaign IDs.
+            {t('fieldSettings.hidden.intro')}
           </div>
-          <TextField label="Name (technical)" value={field.name} onChange={(v) => update({ name: v })} mono hint="Key stored with each submission (e.g. utm_source)." />
-          <TextField label="Prefill from URL parameter" value={field.queryParam || ''} onChange={(v) => update({ queryParam: v })} mono placeholder="utm_source" hint="If the form URL has ?utm_source=… its value is captured automatically." />
-          <TextField label="Default value" value={String(field.defaultValue ?? '')} onChange={(v) => update({ defaultValue: v })} hint="Used when the URL parameter above is absent." />
+          <TextField label={t('fieldSettings.name')} value={field.name} onChange={(v) => update({ name: v })} mono hint={t('fieldSettings.hidden.nameHint')} />
+          <TextField label={t('fieldSettings.queryParam')} value={field.queryParam || ''} onChange={(v) => update({ queryParam: v })} mono placeholder="utm_source" hint={t('fieldSettings.queryParam.hint')} />
+          <TextField label={t('fieldSettings.defaultValue')} value={String(field.defaultValue ?? '')} onChange={(v) => update({ defaultValue: v })} hint={t('fieldSettings.defaultValue.hint')} />
         </div>
       )}
 
       {(tab === 'general' || deco) && !isHidden && (
         <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <TextField label={deco ? (field.type === 'divider' ? 'Label (internal)' : 'Text') : 'Label'} value={field.label} onChange={(v) => update({ label: v })} />
+          <TextField label={deco ? (field.type === 'divider' ? t('fieldSettings.labelInternal') : t('fieldSettings.text')) : t('fieldSettings.label')} value={field.label} onChange={(v) => update({ label: v })} />
 
           {!deco && (
             <>
-              <TextField label="Name (technical)" value={field.name} onChange={(v) => update({ name: v })} mono hint="Used as the key in submissions & the API payload." />
+              <TextField label={t('fieldSettings.name')} value={field.name} onChange={(v) => update({ name: v })} mono hint={t('fieldSettings.name.hint')} />
               {PLACEHOLDER_TYPES.includes(field.type) && (
                 <TextField
-                  label={field.type === 'select' ? 'Empty option text' : 'Placeholder'}
+                  label={field.type === 'select' ? t('fieldSettings.emptyOption') : t('fieldSettings.placeholder')}
                   value={field.placeholder || ''}
                   onChange={(v) => update({ placeholder: v })}
                 />
               )}
-              <TextField label="Help text" value={field.helpText || ''} onChange={(v) => update({ helpText: v })} />
+              <TextField label={t('fieldSettings.helpText')} value={field.helpText || ''} onChange={(v) => update({ helpText: v })} />
             </>
           )}
 
           {hasOptions && (
-            <Labeled label="Options">
+            <Labeled label={t('fieldSettings.options')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {(field.options || []).map((opt, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input className="sfb-inp" placeholder="Label" value={opt.label} onChange={(e) => updateOption(i, { label: e.target.value, value: opt.value || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })} style={{ ...inpStyle, flex: 1 }} />
+                    <input className="sfb-inp" placeholder={t('fieldSettings.optionLabel')} value={opt.label} onChange={(e) => updateOption(i, { label: e.target.value, value: opt.value || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })} style={{ ...inpStyle, flex: 1 }} />
                     <button type="button" onClick={() => removeOption(i)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, color: C.n400, background: C.n0, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Trash width="14px" height="14px" fill="currentColor" />
                     </button>
                   </div>
                 ))}
-                <button type="button" onClick={addOption} style={{ height: 32, border: `1px dashed ${C.n300}`, borderRadius: 4, color: C.p700, font: `600 12px ${FF}`, background: C.p100, cursor: 'pointer' }}>+ Add option</button>
+                <button type="button" onClick={addOption} style={{ height: 32, border: `1px dashed ${C.n300}`, borderRadius: 4, color: C.p700, font: `600 12px ${FF}`, background: C.p100, cursor: 'pointer' }}>{t('fieldSettings.addOption')}</button>
               </div>
             </Labeled>
           )}
 
           {field.type !== 'divider' && (
-            <Labeled label="Width">
+            <Labeled label={t('fieldSettings.width')}>
               <Seg value={field.width} onChange={(v) => update({ width: v })} />
             </Labeled>
           )}
 
-          <TextField label="CSS class" value={field.cssClass || ''} onChange={(v) => update({ cssClass: v })} placeholder="my-custom-class" />
+          <TextField label={t('fieldSettings.cssClass')} value={field.cssClass || ''} onChange={(v) => update({ cssClass: v })} placeholder="my-custom-class" />
         </div>
       )}
 
@@ -215,56 +214,56 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
           {/* Required — flag + custom message */}
           <div style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ font: `600 13px ${FF}`, color: C.n800 }}>Required</span>
+              <span style={{ font: `600 13px ${FF}`, color: C.n800 }}>{t('fieldSettings.required')}</span>
               <Toggle on={field.required} onClick={() => setRequired(!field.required)} />
             </div>
             {field.required && (
-              <input className="sfb-inp" value={reqMsg} placeholder={`${field.label || 'This field'} is required`} onChange={(e) => setReqMsg(e.target.value)} style={inpStyle} />
+              <input className="sfb-inp" value={reqMsg} placeholder={t('fieldSettings.requiredMessage', { label: field.label || t('fieldSettings.thisField') })} onChange={(e) => setReqMsg(e.target.value)} style={inpStyle} />
             )}
           </div>
 
           {ruleTypes.length > 0 && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>Rules</span>
-                <button type="button" onClick={addValidation} style={{ height: 30, padding: '0 10px', borderRadius: 4, border: `1px solid ${C.p200}`, background: C.p100, color: C.p700, font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Add rule</button>
+                <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: C.n500 }}>{t('fieldSettings.rules')}</span>
+                <button type="button" onClick={addValidation} style={{ height: 30, padding: '0 10px', borderRadius: 4, border: `1px solid ${C.p200}`, background: C.p100, color: C.p700, font: `600 12px ${FF}`, cursor: 'pointer' }}>{t('fieldSettings.addRule')}</button>
               </div>
 
               {field.validation.filter((v) => v.type !== 'required').length === 0 && (
-                <span style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>No extra rules yet.</span>
+                <span style={{ font: `400 12px ${FF}`, color: C.n500, lineHeight: 1.5 }}>{t('fieldSettings.noRules')}</span>
               )}
 
               {field.validation.map((rule, i) => {
                 if (rule.type === 'required') return null;
                 const used = field.validation.filter((_, j) => j !== i).map((r) => r.type);
                 // options = rules valid for this type, minus ones already used (keep current)
-                const available = ruleTypes.filter((t) => t === rule.type || !used.includes(t));
+                const available = ruleTypes.filter((r) => r === rule.type || !used.includes(r));
                 const hasValue = ['minLength', 'maxLength', 'min', 'max', 'pattern'].includes(rule.type);
                 return (
                   <div key={i} style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 8, background: C.n0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <select className="sfb-inp" value={rule.type} onChange={(e) => updateValidation(i, { type: e.target.value, value: undefined, message: '' })} style={{ ...inpStyle, flex: 1, cursor: 'pointer' }}>
-                        {available.map((t) => <option key={t} value={t}>{RULE_LABELS[t]}</option>)}
+                        {available.map((r) => <option key={r} value={r}>{t(`rule.${r}`)}</option>)}
                       </select>
                       <button type="button" onClick={() => removeValidation(i)} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.n200}`, color: C.n400, background: C.n0, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Trash width="14px" height="14px" fill="currentColor" />
                       </button>
                     </div>
                     {hasValue && (
-                      <input className="sfb-inp" placeholder={rule.type === 'pattern' ? '^[a-z0-9]+$' : 'Value'} value={String(rule.value ?? '')} onChange={(e) => updateValidation(i, { value: e.target.value })} style={{ ...inpStyle, ...(rule.type === 'pattern' ? { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 } : {}) }} />
+                      <input className="sfb-inp" placeholder={rule.type === 'pattern' ? '^[a-z0-9]+$' : t('fieldSettings.value')} value={String(rule.value ?? '')} onChange={(e) => updateValidation(i, { value: e.target.value })} style={{ ...inpStyle, ...(rule.type === 'pattern' ? { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 } : {}) }} />
                     )}
                     {rule.type === 'pattern' && (
                       <a href="https://regex101.com/" target="_blank" rel="noopener noreferrer" style={{ font: `500 11px ${FF}`, color: C.p600, textDecoration: 'none' }}>
-                        Test &amp; learn regex ↗
+                        {t('fieldSettings.regexHelp')}
                       </a>
                     )}
-                    <input className="sfb-inp" placeholder="Custom error message (optional)" value={rule.message || ''} onChange={(e) => updateValidation(i, { message: e.target.value })} style={inpStyle} />
+                    <input className="sfb-inp" placeholder={t('fieldSettings.customError')} value={rule.message || ''} onChange={(e) => updateValidation(i, { message: e.target.value })} style={inpStyle} />
                   </div>
                 );
               })}
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, font: `400 11px ${FF}`, color: C.n500, lineHeight: 1.5 }}>
-                <span style={{ color: C.wrn600 }}>⚠</span>Rules run on the public form and in the preview.
+                <span style={{ color: C.wrn600 }}>⚠</span>{t('fieldSettings.rulesNote')}
               </div>
             </>
           )}

@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { C, FF } from '../ui';
+import { useT } from '../utils/useT';
 
 export interface TourStep {
   selector: string;
@@ -49,6 +50,7 @@ const btn = (variant: 'ghost' | 'pri'): React.CSSProperties => ({
  * target isn't in the DOM are skipped automatically.
  */
 export function GuidedTour({ steps, onClose, onPanel }: { steps: TourStep[]; onClose: () => void; onPanel?: (panel: string | null) => void }) {
+  const t = useT();
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const step = steps[i];
@@ -109,9 +111,9 @@ export function GuidedTour({ steps, onClose, onPanel }: { steps: TourStep[]; onC
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
           <span style={{ font: `500 12px ${FF}`, color: C.n500 }}>{i + 1} / {steps.length}</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={onClose} style={btn('ghost')}>Skip</button>
-            {i > 0 && <button type="button" onClick={() => setI(i - 1)} style={btn('ghost')}>Back</button>}
-            <button type="button" onClick={() => (last ? onClose() : setI(i + 1))} style={btn('pri')}>{last ? 'Done' : 'Next'}</button>
+            <button type="button" onClick={onClose} style={btn('ghost')}>{t('tour.skip')}</button>
+            {i > 0 && <button type="button" onClick={() => setI(i - 1)} style={btn('ghost')}>{t('common.back')}</button>}
+            <button type="button" onClick={() => (last ? onClose() : setI(i + 1))} style={btn('pri')}>{last ? t('tour.done') : t('common.next')}</button>
           </div>
         </div>
       </div>

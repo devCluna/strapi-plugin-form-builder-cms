@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FormField, FormSettings } from '../types';
+import { useT } from '../utils/useT';
 
 /* ── shared tokens ─────────────────────────────────────────────────── */
 const TOKEN = {
@@ -47,9 +48,10 @@ const helpStyle: React.CSSProperties = {
 };
 
 function Label({ field }: { field: FormField }) {
+  const t = useT();
   return (
     <span style={labelStyle}>
-      {field.label || <em style={{ color: TOKEN.sub }}>No label</em>}
+      {field.label || <em style={{ color: TOKEN.sub }}>{t('preview.noLabel')}</em>}
       {field.required && <span style={{ color: TOKEN.danger, marginLeft: 2 }}>*</span>}
     </span>
   );
@@ -91,6 +93,7 @@ function TextareaField({ field }: { field: FormField }) {
 }
 
 function SelectField({ field }: { field: FormField }) {
+  const t = useT();
   const [val, setVal] = useState('');
   return (
     <div style={fieldWrap}>
@@ -106,7 +109,7 @@ function SelectField({ field }: { field: FormField }) {
             cursor: 'pointer',
           }}
         >
-          <option value="">{field.placeholder || 'Select an option…'}</option>
+          <option value="">{field.placeholder || t('preview.selectOption')}</option>
           {(field.options || []).map((o, i) => (
             <option key={i} value={o.value}>{o.label || o.value}</option>
           ))}
@@ -230,6 +233,7 @@ function CheckboxGroupField({ field }: { field: FormField }) {
 /* ── dispatcher ─────────────────────────────────────────────────────── */
 
 function PreviewField({ field }: { field: FormField }) {
+  const t = useT();
   const half = field.width === 'half';
   const colSpan = half ? 1 : 2;
 
@@ -246,7 +250,7 @@ function PreviewField({ field }: { field: FormField }) {
   if (field.type === 'heading') {
     return (
       <div className={field.cssClass || undefined} style={{ gridColumn: '1 / -1' }}>
-        <p style={{ fontSize: 18, fontWeight: 700, color: TOKEN.text, margin: 0 }}>{field.label || 'Heading'}</p>
+        <p style={{ fontSize: 18, fontWeight: 700, color: TOKEN.text, margin: 0 }}>{field.label || t('preview.heading')}</p>
       </div>
     );
   }
@@ -254,7 +258,7 @@ function PreviewField({ field }: { field: FormField }) {
   if (field.type === 'paragraph') {
     return (
       <div className={field.cssClass || undefined} style={{ gridColumn: '1 / -1' }}>
-        <p style={{ fontSize: 14, color: TOKEN.sub, margin: 0, lineHeight: 1.6 }}>{field.label || 'Paragraph text'}</p>
+        <p style={{ fontSize: 14, color: TOKEN.sub, margin: 0, lineHeight: 1.6 }}>{field.label || t('preview.paragraph')}</p>
       </div>
     );
   }
@@ -288,6 +292,7 @@ interface Props {
  * Closes on scrim click, the header ✕, or Escape.
  */
 export function FormPreview({ title, description, fields, settings, open, onClose }: Props) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -303,8 +308,8 @@ export function FormPreview({ title, description, fields, settings, open, onClos
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 660, maxWidth: '96vw', maxHeight: '90vh', background: '#fff', borderRadius: 8, boxShadow: '0 2px 15px rgba(33,33,52,.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 51 }}>
         {/* header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid #eaeaef', flex: 'none' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: TOKEN.text, margin: 0, fontFamily: 'inherit' }}>Preview — {title}</h3>
-          <button type="button" onClick={onClose} title="Close" style={{ width: 30, height: 30, borderRadius: 5, color: TOKEN.sub, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: TOKEN.text, margin: 0, fontFamily: 'inherit' }}>{t('preview.title', { title })}</h3>
+          <button type="button" onClick={onClose} title={t('common.close')} style={{ width: 30, height: 30, borderRadius: 5, color: TOKEN.sub, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
         </div>
 
         {/* body */}
@@ -314,7 +319,7 @@ export function FormPreview({ title, description, fields, settings, open, onClos
             {description && <p style={{ fontSize: 14, color: TOKEN.sub, margin: '0 0 22px', lineHeight: 1.55 }}>{description}</p>}
             <form onSubmit={(e) => e.preventDefault()}>
               {fields.length === 0 ? (
-                <p style={{ textAlign: 'center', color: TOKEN.sub, padding: '32px 0', margin: 0 }}>No fields added yet.</p>
+                <p style={{ textAlign: 'center', color: TOKEN.sub, padding: '32px 0', margin: 0 }}>{t('preview.noFields')}</p>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                   {fields.map((field) => (
@@ -327,7 +332,7 @@ export function FormPreview({ title, description, fields, settings, open, onClos
                   type="submit"
                   style={{ marginTop: 26, height: 48, width: '100%', borderRadius: TOKEN.radius, background: TOKEN.accent, color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', border: 'none', cursor: 'pointer' }}
                 >
-                  {settings.submitButtonText || 'Submit'}
+                  {settings.submitButtonText || t('defaults.submitButton')}
                 </button>
               )}
             </form>

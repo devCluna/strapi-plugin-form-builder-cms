@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Box, Flex, Loader } from '@strapi/design-system';
 import { useNotification } from '@strapi/strapi/admin';
@@ -16,10 +16,11 @@ import { GuidedTour, TourStep } from '../components/GuidedTour';
 import { PLUGIN_ID } from '../pluginId';
 import { C, FF } from '../ui';
 import { FormTheme, DEFAULT_THEME, resolveThemeVars } from '../theme';
+import { useT, TFunction } from '../utils/useT';
 
-const DEFAULT_SETTINGS: FormSettings = {
-  submitButtonText: 'Submit',
-  successMessage: 'Form submitted successfully',
+const makeDefaultSettings = (t: TFunction): FormSettings => ({
+  submitButtonText: t('defaults.submitButton'),
+  successMessage: t('defaults.successMessage'),
   enableHoneypot: true,
   enableRateLimit: true,
   maxSubmissionsPerHour: 60,
@@ -31,7 +32,7 @@ const DEFAULT_SETTINGS: FormSettings = {
   enableStyle: false,
   theme: DEFAULT_THEME,
   themeVars: resolveThemeVars(DEFAULT_THEME),
-};
+});
 
 // Order-insensitive stringify so key ordering in stored JSON doesn't create false diffs.
 function stableStringify(v: any): string {
@@ -103,6 +104,7 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
   onToggleStyle: (v: boolean) => void;
   onOpenStyle: () => void;
 }) {
+  const t = useT();
   // edits stay in a local buffer — they only reach the form on "Save settings"
   const [description, setDescription] = useState(initialDescription);
   const [settings, setSettings] = useState<FormSettings>(initialSettings);
@@ -121,7 +123,7 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
       const r = await api.testCaptcha(settings.captcha.provider, settings.captcha.secretKey);
       setTestResult(r);
     } catch {
-      setTestResult({ ok: false, reason: 'Test request failed' });
+      setTestResult({ ok: false, reason: t('settings.captcha.testFailed') });
     } finally {
       setTesting(false);
     }
@@ -130,7 +132,7 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
   const handleSave = () => {
     const cap = settings.captcha;
     if (cap && cap.provider !== 'none' && (!cap.siteKey?.trim() || !cap.secretKey?.trim())) {
-      setCaptchaErr('Enter both the site key and secret key, or set CAPTCHA to None.');
+      setCaptchaErr(t('settings.captcha.keysRequired'));
       return;
     }
     setCaptchaErr('');
@@ -145,30 +147,30 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 452, maxWidth: '100vw', background: C.n0, boxShadow: '-10px 0 50px rgba(33,33,52,.22)', display: 'flex', flexDirection: 'column', zIndex: 41 }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.n150}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h3 style={{ font: `800 20px ${FF}`, color: C.n900, margin: 0 }}>Form settings</h3>
+            <h3 style={{ font: `800 20px ${FF}`, color: C.n900, margin: 0 }}>{t('settings.title')}</h3>
           </div>
-          <button type="button" onClick={onCancel} title="Close" style={{ width: 30, height: 30, borderRadius: 5, color: C.n500, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
+          <button type="button" onClick={onCancel} title={t('common.close')} style={{ width: 30, height: 30, borderRadius: 5, color: C.n500, border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>✕</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px' }}>
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
-            <div style={dGroupT}>General</div>
-            <label style={dLbl}>Description</label>
+            <div style={dGroupT}>{t('settings.general')}</div>
+            <label style={dLbl}>{t('settings.description')}</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...dInp, height: 'auto', minHeight: 62, padding: '10px 11px', lineHeight: 1.5, resize: 'vertical' }} />
             <div style={{ marginTop: 16 }}>
-              <label style={dLbl}>Submit button text</label>
+              <label style={dLbl}>{t('settings.submitButton')}</label>
               <input value={settings.submitButtonText} onChange={(e) => patch({ submitButtonText: e.target.value })} style={dInp} />
             </div>
             <div style={{ marginTop: 16 }}>
-              <label style={dLbl}>Success message</label>
+              <label style={dLbl}>{t('settings.successMessage')}</label>
               <input value={settings.successMessage} onChange={(e) => patch({ successMessage: e.target.value })} style={dInp} />
             </div>
           </div>
 
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
-            <div style={dGroupT}>Public access</div>
+            <div style={dGroupT}>{t('settings.publicAccess')}</div>
             <div data-tour="publicpage">
-              <ToggleRow label="Public page" hint="Generate a shareable live link." on={settings.publicPage} onClick={() => patch({ publicPage: !settings.publicPage })} />
+              <ToggleRow label={t('settings.publicPage')} hint={t('settings.publicPage.hint')} on={settings.publicPage} onClick={() => patch({ publicPage: !settings.publicPage })} />
             </div>
             {settings.publicPage && (
               <div style={{ marginTop: 14 }}>
@@ -179,78 +181,78 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
                     </div>
                     <div style={{ ...dHint, marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{live ? 'Live now.' : '⚠ Inactive until a version is published.'}</span>
-                      <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: C.p600, fontWeight: 600, textDecoration: 'none' }}>Open ↗</a>
+                      <span>{live ? t('settings.liveNow') : t('settings.inactive')}</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: C.p600, fontWeight: 600, textDecoration: 'none' }}>{t('common.openArrow')}</a>
                     </div>
                   </>
                 ) : (
-                  <div style={dHint}>Save the form to generate the public link.</div>
+                  <div style={dHint}>{t('settings.saveForLink')}</div>
                 )}
               </div>
             )}
           </div>
 
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
-            <div style={dGroupT}>Style</div>
+            <div style={dGroupT}>{t('settings.style')}</div>
             <div data-tour="customstyles">
-              <ToggleRow label="Custom styles" hint="Enable the Style editor to theme the public form." on={!!settings.enableStyle} onClick={() => { const v = !settings.enableStyle; patch({ enableStyle: v }); onToggleStyle(v); }} />
+              <ToggleRow label={t('settings.customStyles')} hint={t('settings.customStyles.hint')} on={!!settings.enableStyle} onClick={() => { const v = !settings.enableStyle; patch({ enableStyle: v }); onToggleStyle(v); }} />
             </div>
             {settings.enableStyle && (
               <div style={{ marginTop: 12 }}>
                 <button type="button" onClick={onOpenStyle} style={{ font: `600 12px ${FF}`, color: C.p600, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-                  Open the style editor →
+                  {t('settings.openStyle')}
                 </button>
-                <div style={{ ...dHint, marginTop: 6 }}>Style changes follow draft / publish — they go live when you publish.</div>
+                <div style={{ ...dHint, marginTop: 6 }}>{t('settings.styleNote')}</div>
               </div>
             )}
           </div>
 
           <div style={{ padding: '20px 0', borderBottom: `1px solid ${C.n150}` }}>
-            <div style={dGroupT}>Spam &amp; limits</div>
-            <ToggleRow label="Honeypot protection" hint="Silently discards bot submissions." on={settings.enableHoneypot} onClick={() => patch({ enableHoneypot: !settings.enableHoneypot })} />
-            <ToggleRow label="Rate limiting" hint="Cap submissions per IP each hour." on={settings.enableRateLimit} onClick={() => patch({ enableRateLimit: !settings.enableRateLimit })} />
+            <div style={dGroupT}>{t('settings.spam')}</div>
+            <ToggleRow label={t('settings.honeypot')} hint={t('settings.honeypot.hint')} on={settings.enableHoneypot} onClick={() => patch({ enableHoneypot: !settings.enableHoneypot })} />
+            <ToggleRow label={t('settings.rateLimit')} hint={t('settings.rateLimit.hint')} on={settings.enableRateLimit} onClick={() => patch({ enableRateLimit: !settings.enableRateLimit })} />
             {settings.enableRateLimit && (
               <div style={{ marginTop: 16 }}>
-                <label style={dLbl}>Max submissions / hour</label>
+                <label style={dLbl}>{t('settings.maxPerHour')}</label>
                 <input value={String(settings.maxSubmissionsPerHour ?? '')} onChange={(e) => patch({ maxSubmissionsPerHour: Number(e.target.value.replace(/[^0-9]/g, '')) || 0 })} style={{ ...dInp, width: 120 }} />
               </div>
             )}
 
             <div style={{ marginTop: 16 }}>
-              <label style={dLbl}>CAPTCHA</label>
+              <label style={dLbl}>{t('settings.captcha')}</label>
               <select
                 value={settings.captcha?.provider || 'none'}
                 onChange={(e) => { setCaptchaErr(''); patch({ captcha: { provider: e.target.value as any, siteKey: '', secretKey: '' } }); }}
                 style={{ ...dInp, cursor: 'pointer' }}
               >
-                <option value="none">None</option>
+                <option value="none">{t('settings.captcha.none')}</option>
                 <option value="turnstile">Cloudflare Turnstile</option>
                 <option value="recaptcha">Google reCAPTCHA v2</option>
               </select>
-              <div style={dHint}>Human-verification challenge required before a submission is accepted.</div>
+              <div style={dHint}>{t('settings.captcha.hint')}</div>
             </div>
             {settings.captcha && settings.captcha.provider !== 'none' && (
               <>
                 <div style={{ marginTop: 12 }}>
-                  <label style={dLbl}>Site key</label>
-                  <input value={settings.captcha.siteKey} onChange={(e) => patch({ captcha: { ...settings.captcha!, siteKey: e.target.value } })} placeholder="Public — sent to the browser" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                  <label style={dLbl}>{t('settings.captcha.siteKey')}</label>
+                  <input value={settings.captcha.siteKey} onChange={(e) => patch({ captcha: { ...settings.captcha!, siteKey: e.target.value } })} placeholder={t('settings.captcha.sitePlaceholder')} style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
                 </div>
                 <div style={{ marginTop: 12 }}>
-                  <label style={dLbl}>Secret key</label>
-                  <input type="password" value={settings.captcha.secretKey} onChange={(e) => { setTestResult(null); patch({ captcha: { ...settings.captcha!, secretKey: e.target.value } }); }} placeholder="Private — kept server-side, never exposed" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+                  <label style={dLbl}>{t('settings.captcha.secretKey')}</label>
+                  <input type="password" value={settings.captcha.secretKey} onChange={(e) => { setTestResult(null); patch({ captcha: { ...settings.captcha!, secretKey: e.target.value } }); }} placeholder={t('settings.captcha.secretPlaceholder')} style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
                 </div>
                 <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button type="button" onClick={testCaptcha} disabled={testing || !settings.captcha.secretKey.trim()} style={{ height: 30, padding: '0 12px', borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, color: C.n800, font: `600 12px ${FF}`, cursor: testing || !settings.captcha.secretKey.trim() ? 'not-allowed' : 'pointer', opacity: testing || !settings.captcha.secretKey.trim() ? 0.5 : 1 }}>
-                    {testing ? 'Testing…' : 'Test secret key'}
+                    {testing ? t('settings.captcha.testing') : t('settings.captcha.test')}
                   </button>
                   {testResult && (
                     <span style={{ font: `600 12px ${FF}`, color: testResult.ok ? C.suc600 : C.dng600 }}>
-                      {testResult.ok ? '✓ Secret key valid' : `✗ ${testResult.reason || 'Invalid'}`}
+                      {testResult.ok ? t('settings.captcha.valid') : t('settings.captcha.invalid', { reason: testResult.reason || t('settings.captcha.invalidDefault') })}
                     </span>
                   )}
                 </div>
                 <div style={{ ...dHint, marginTop: 6 }}>
-                  Note: the site key can only be checked on the live form — an invalid site key shows no widget there.
+                  {t('settings.captcha.siteNote')}
                 </div>
                 {captchaErr && <div style={{ marginTop: 10, font: `500 12px ${FF}`, color: C.dng600 }}>{captchaErr}</div>}
               </>
@@ -258,42 +260,44 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
           </div>
 
           <div style={{ padding: '20px 0' }}>
-            <div style={dGroupT}>Advanced</div>
-            <label style={dLbl}>Redirect URL after submit</label>
-            <input value={settings.redirectUrl} onChange={(e) => patch({ redirectUrl: e.target.value })} placeholder="https://acme.co/thank-you" style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
+            <div style={dGroupT}>{t('settings.advanced')}</div>
+            <label style={dLbl}>{t('settings.redirect')}</label>
+            <input value={settings.redirectUrl} onChange={(e) => patch({ redirectUrl: e.target.value })} placeholder={t('settings.redirect.placeholder')} style={{ ...dInp, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }} />
           </div>
         </div>
 
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.n150}`, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <HeaderBtn variant="ghost" onClick={onCancel}>Cancel</HeaderBtn>
-          <HeaderBtn variant="pri" onClick={handleSave}>Save settings</HeaderBtn>
+          <HeaderBtn variant="ghost" onClick={onCancel}>{t('common.cancel')}</HeaderBtn>
+          <HeaderBtn variant="pri" onClick={handleSave}>{t('settings.save')}</HeaderBtn>
         </div>
       </div>
     </>
   );
 }
 
-function createField(type: FieldType, order: number): FormField {
+function createField(type: FieldType, order: number, t: TFunction): FormField {
   const id = uuid();
   return {
     id,
     type,
     // unique per-field name derived from the uuid — Date.now() collided for fields added in the same ms
     name: `${type}_${id.slice(0, 8)}`,
-    label: type.charAt(0).toUpperCase() + type.slice(1),
+    label: t(`field.${type}`),
     placeholder: '',
     helpText: '',
     required: false,
     order,
     width: 'full',
     options: ['select', 'radio', 'checkbox-group'].includes(type)
-      ? [{ label: 'Option 1', value: 'option_1' }]
+      ? [{ label: t('field.optionDefault', { n: 1 }), value: 'option_1' }]
       : undefined,
     validation: [],
   };
 }
 
 export function FormBuilderPage() {
+  const t = useT();
+  const defaultSettings = useMemo(() => makeDefaultSettings(t), [t]);
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -306,10 +310,10 @@ export function FormBuilderPage() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [title, setTitle] = useState(seed.templateTitle || 'New form');
+  const [title, setTitle] = useState(seed.templateTitle || t('builder.newForm'));
   const [description, setDescription] = useState('');
   const [fields, setFields] = useState<FormField[]>(seed.templateFields || []);
-  const [settings, setSettings] = useState<FormSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<FormSettings>(defaultSettings);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [mode, setMode] = useState<'fields' | 'style'>('fields');
   const [showTour, setShowTour] = useState(false);
@@ -332,7 +336,7 @@ export function FormBuilderPage() {
         setTitle(form.title);
         setDescription(typeof form.description === 'string' ? form.description : '');
         setFields(form.fields || []);
-        setSettings({ ...DEFAULT_SETTINGS, ...(form.settings || {}) });
+        setSettings({ ...defaultSettings, ...(form.settings || {}) });
         setPublishedAt(form.publishedAt ?? null);
         setPublishedData((form as any).publishedData ?? null);
         setSlug(form.slug ?? null);
@@ -341,7 +345,7 @@ export function FormBuilderPage() {
           title: form.title,
           description: form.description || '',
           fields: form.fields || [],
-          settings: { ...DEFAULT_SETTINGS, ...(form.settings || {}) },
+          settings: { ...defaultSettings, ...(form.settings || {}) },
         });
       });
     } else {
@@ -364,10 +368,10 @@ export function FormBuilderPage() {
 
   // single status pill: unpublished-changes replaces the published/draft label
   const status = hasUnpublishedChanges
-    ? { label: 'Unpublished changes', bg: C.wrn100, fg: C.wrn700, dot: C.wrn600 }
+    ? { label: t('builder.status.unpublished'), bg: C.wrn100, fg: C.wrn700, dot: C.wrn600 }
     : publishedAt
-      ? { label: 'Published', bg: '#eafbe7', fg: C.suc700, dot: C.suc600 }
-      : { label: 'Draft', bg: C.n150, fg: C.n700, dot: C.n500 };
+      ? { label: t('builder.status.published'), bg: '#eafbe7', fg: C.suc700, dot: C.suc600 }
+      : { label: t('builder.status.draft'), bg: C.n150, fg: C.n700, dot: C.n500 };
   const liveUrl = slug ? `${window.location.origin}/api/${PLUGIN_ID}/page/${slug}` : '';
   const showLiveLink = !!publishedAt && settings.publicPage && !!slug;
 
@@ -380,15 +384,15 @@ export function FormBuilderPage() {
   }, [dirty]);
 
   const goBack = () => {
-    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    if (dirty && !window.confirm(t('builder.unsavedConfirm'))) return;
     navigate(`/plugins/${PLUGIN_ID}`);
   };
 
   const addField = useCallback((type: FieldType) => {
-    const newField = createField(type, fields.length);
+    const newField = createField(type, fields.length, t);
     setFields((prev) => [...prev, newField]);
     setSelectedFieldId(newField.id);
-  }, [fields.length]);
+  }, [fields.length, t]);
 
   const updateField = useCallback((updated: FormField) => {
     setFields((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
@@ -418,7 +422,7 @@ export function FormBuilderPage() {
         setPublishedAt(updated.publishedAt ?? null);
         markSaved();
       }
-      toggleNotification({ type: 'info', message: 'Saved as draft. Publish to make your changes — including styles — live.' });
+      toggleNotification({ type: 'info', message: t('builder.toast.saved') });
     } finally {
       setSaving(false);
     }
@@ -444,7 +448,7 @@ export function FormBuilderPage() {
         setPublishedData(updated.publishedData ?? snap);
         markSaved();
       }
-      toggleNotification({ type: 'success', message: 'Published. Your form and styles are now live.' });
+      toggleNotification({ type: 'success', message: t('builder.toast.published') });
     } finally {
       setPublishing(false);
     }
@@ -455,15 +459,15 @@ export function FormBuilderPage() {
   // guided tour — auto-runs once per browser, re-launchable from the "?" button
   const TOUR_KEY = 'sfb-tour-done';
   const tourSteps: TourStep[] = [
-    { selector: '[data-tour="palette"]', title: 'Field palette', body: 'Click any field type to add it to your form. Use search to filter the list.' },
-    { selector: '[data-tour="canvas"]', title: 'Build your form', body: 'Fields land here. Click one to edit its label, validation and width; drag the handle to reorder.' },
-    { selector: '[data-tour="settings"]', title: 'Settings', body: 'Public page, spam protection, CAPTCHA and custom styles live in this drawer.' },
-    { selector: '[data-tour="publicpage"]', title: 'Public page', body: 'Turn this on to generate a shareable hosted page for the form (live once published).', panel: 'settings' },
-    { selector: '[data-tour="customstyles"]', title: 'Custom styles', body: 'Enable this to unlock the visual Style editor for theming the public form.', panel: 'settings' },
-    ...(settings.enableStyle ? [{ selector: '[data-tour="styletab"]', title: 'Style', body: 'Theme the public form visually — colours, fonts, corners and layout — with a live preview.' }] : []),
-    { selector: '[data-tour="preview"]', title: 'Preview', body: 'See the rendered form before you publish it.' },
-    { selector: '[data-tour="embed"]', title: 'Embed', body: 'Once the form is saved, grab the snippet here to drop it onto any website.' },
-    { selector: '[data-tour="publish"]', title: 'Publish', body: 'Save a draft privately, or publish to push your changes — fields and styles — live.' },
+    { selector: '[data-tour="palette"]', title: t('tour.palette.title'), body: t('tour.palette.body') },
+    { selector: '[data-tour="canvas"]', title: t('tour.canvas.title'), body: t('tour.canvas.body') },
+    { selector: '[data-tour="settings"]', title: t('tour.settings.title'), body: t('tour.settings.body') },
+    { selector: '[data-tour="publicpage"]', title: t('tour.publicpage.title'), body: t('tour.publicpage.body'), panel: 'settings' },
+    { selector: '[data-tour="customstyles"]', title: t('tour.customstyles.title'), body: t('tour.customstyles.body'), panel: 'settings' },
+    ...(settings.enableStyle ? [{ selector: '[data-tour="styletab"]', title: t('tour.style.title'), body: t('tour.style.body') }] : []),
+    { selector: '[data-tour="preview"]', title: t('tour.preview.title'), body: t('tour.preview.body') },
+    { selector: '[data-tour="embed"]', title: t('tour.embed.title'), body: t('tour.embed.body') },
+    { selector: '[data-tour="publish"]', title: t('tour.publish.title'), body: t('tour.publish.body') },
   ];
   const startTour = () => setShowTour(true);
   const endTour = () => { setShowTour(false); setShowSettings(false); try { localStorage.setItem(TOUR_KEY, '1'); } catch { /* ignore */ } };
@@ -476,7 +480,7 @@ export function FormBuilderPage() {
   if (loading) {
     return (
       <Flex justifyContent="center" padding={10}>
-        <Loader>Loading form...</Loader>
+        <Loader>{t('builder.loading')}</Loader>
       </Flex>
     );
   }
@@ -486,7 +490,7 @@ export function FormBuilderPage() {
       {/* Header */}
       <div style={{ background: C.n0, borderBottom: `1px solid ${C.n150}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <button type="button" onClick={goBack} title="Back" style={{ width: 34, height: 34, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, flex: 'none', cursor: 'pointer' }}>
+          <button type="button" onClick={goBack} title={t('common.back')} style={{ width: 34, height: 34, borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, flex: 'none', cursor: 'pointer' }}>
             <ArrowLeft width="16px" height="16px" fill="currentColor" />
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
@@ -503,17 +507,17 @@ export function FormBuilderPage() {
               ) : (
                 <>
                   <b style={{ font: `700 18px ${FF}`, color: C.n900, whiteSpace: 'nowrap' }}>{title}</b>
-                  <button type="button" onClick={() => setEditingTitle(true)} title="Rename" style={{ display: 'inline-flex', color: C.n400, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button type="button" onClick={() => setEditingTitle(true)} title={t('builder.rename')} style={{ display: 'inline-flex', color: C.n400, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
                     <Pencil width="13px" height="13px" fill="currentColor" />
                   </button>
                 </>
               )}
             </div>
             <div style={{ font: `400 11px ${FF}`, color: C.n500 }}>
-              {fields.length} {fields.length === 1 ? 'field' : 'fields'}
+              {t('builder.fieldCount', { count: fields.length })}
             </div>
           </div>
-          <span title={hasUnpublishedChanges ? "Your edits aren't live yet — Publish to update the public form" : undefined} style={{ height: 24, padding: '0 9px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, font: `700 11px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', background: status.bg, color: status.fg }}>
+          <span title={hasUnpublishedChanges ? t('builder.unpublishedHint') : undefined} style={{ height: 24, padding: '0 9px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, font: `700 11px ${FF}`, letterSpacing: '.3px', textTransform: 'uppercase', background: status.bg, color: status.fg }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.dot }} />
             {status.label}
           </span>
@@ -522,24 +526,24 @@ export function FormBuilderPage() {
           <div data-tour="styletab" style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 8, overflow: 'hidden', flex: 'none' }}>
             {(['fields', 'style'] as const).map((m, i) => (
               <button key={m} type="button" onClick={() => setMode(m)}
-                style={{ height: 34, padding: '0 18px', border: 'none', borderLeft: i ? `1px solid ${C.n200}` : 'none', background: mode === m ? C.p600 : C.n0, color: mode === m ? '#fff' : C.n700, font: `600 13px ${FF}`, cursor: 'pointer', textTransform: 'capitalize' }}>
-                {m}
+                style={{ height: 34, padding: '0 18px', border: 'none', borderLeft: i ? `1px solid ${C.n200}` : 'none', background: mode === m ? C.p600 : C.n0, color: mode === m ? '#fff' : C.n700, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+                {t(`builder.mode.${m}`)}
               </button>
             ))}
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {showLiveLink && (
-            <a href={liveUrl} target="_blank" rel="noopener noreferrer" title="Open the live public form" style={{ font: `600 12px ${FF}`, color: C.p600, textDecoration: 'none', marginRight: 4 }}>
-              View live ↗
+            <a href={liveUrl} target="_blank" rel="noopener noreferrer" title={t('builder.viewLive.title')} style={{ font: `600 12px ${FF}`, color: C.p600, textDecoration: 'none', marginRight: 4 }}>
+              {t('builder.viewLive')}
             </a>
           )}
-          <button type="button" onClick={startTour} title="Take a tour" style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${C.n200}`, background: C.n0, color: C.n600, font: `700 14px ${FF}`, cursor: 'pointer', flex: 'none' }}>?</button>
-          <HeaderBtn variant="ghost" tour="settings" onClick={() => setShowSettings((v) => !v)}>Settings</HeaderBtn>
-          <HeaderBtn variant="ghost" tour="preview" onClick={() => setShowPreview(true)}>Preview</HeaderBtn>
-          <HeaderBtn variant="ghost" tour="embed" disabled={isNew} onClick={() => setShowEmbed(true)}>Embed</HeaderBtn>
-          <HeaderBtn variant="sec" onClick={saveDraft} disabled={saving}>Save draft</HeaderBtn>
-          <HeaderBtn variant="pri" tour="publish" onClick={publish} disabled={publishing}>Publish</HeaderBtn>
+          <button type="button" onClick={startTour} title={t('builder.tour')} style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${C.n200}`, background: C.n0, color: C.n600, font: `700 14px ${FF}`, cursor: 'pointer', flex: 'none' }}>?</button>
+          <HeaderBtn variant="ghost" tour="settings" onClick={() => setShowSettings((v) => !v)}>{t('builder.settings')}</HeaderBtn>
+          <HeaderBtn variant="ghost" tour="preview" onClick={() => setShowPreview(true)}>{t('builder.preview')}</HeaderBtn>
+          <HeaderBtn variant="ghost" tour="embed" disabled={isNew} onClick={() => setShowEmbed(true)}>{t('builder.embed')}</HeaderBtn>
+          <HeaderBtn variant="sec" onClick={saveDraft} disabled={saving}>{t('builder.saveDraft')}</HeaderBtn>
+          <HeaderBtn variant="pri" tour="publish" onClick={publish} disabled={publishing}>{t('builder.publish')}</HeaderBtn>
         </div>
       </div>
 
@@ -565,16 +569,16 @@ export function FormBuilderPage() {
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, alignSelf: 'stretch', background: C.n100, padding: '28px 32px 60px', display: 'flex', justifyContent: 'center' }}>
           <div data-tour="canvas" style={{ width: '100%', maxWidth: 860 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <b style={{ font: `700 15px ${FF}`, color: C.n900 }}>Fields</b>
+              <b style={{ font: `700 15px ${FF}`, color: C.n900 }}>{t('builder.fields')}</b>
               <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>
-                {fields.length} {fields.length === 1 ? 'field' : 'fields'}{fields.length > 0 ? ' · drag to reorder' : ''}
+                {t('builder.fieldCount', { count: fields.length })}{fields.length > 0 ? ` · ${t('builder.dragHint')}` : ''}
               </span>
             </div>
 
             {fields.length === 0 ? (
               <div style={{ background: C.n0, border: `1.5px dashed ${C.n300}`, borderRadius: 8, padding: '56px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
-                <b style={{ font: `700 15px ${FF}`, color: C.n900 }}>No fields yet</b>
-                <span style={{ font: `400 13px ${FF}`, color: C.n500 }}>Click a field type in the palette to add it here.</span>
+                <b style={{ font: `700 15px ${FF}`, color: C.n900 }}>{t('builder.empty.title')}</b>
+                <span style={{ font: `400 13px ${FF}`, color: C.n500 }}>{t('builder.empty.body')}</span>
               </div>
             ) : (
               <DropZone
@@ -591,7 +595,7 @@ export function FormBuilderPage() {
               onClick={() => addField('text')}
               style={{ width: '100%', height: 46, border: `1.5px dashed ${C.n300}`, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.p700, font: `600 13px ${FF}`, background: 'transparent', marginTop: 10, cursor: 'pointer' }}
             >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add a text field
+              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> {t('builder.addText')}
             </button>
           </div>
         </div>
@@ -610,7 +614,7 @@ export function FormBuilderPage() {
           fields={fields}
           settings={settings}
           theme={settings.theme || DEFAULT_THEME}
-          onChange={(t) => setSettings((s) => ({ ...s, theme: t, themeVars: resolveThemeVars(t) }))}
+          onChange={(th) => setSettings((s) => ({ ...s, theme: th, themeVars: resolveThemeVars(th) }))}
         />
       )}
 
