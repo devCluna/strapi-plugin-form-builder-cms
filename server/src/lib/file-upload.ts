@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 
 export const DEFAULT_FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx';
@@ -50,11 +49,22 @@ export interface SanitizedFileForStrapi {
   ext: string;
 }
 
+export interface UploadSecurityConfig {
+  allowedTypes?: string[];
+  deniedTypes?: string[];
+}
+
 interface SafeFileTypeSpec {
   mime: string;
   category: 'image' | 'document' | 'archive' | 'audio' | 'video';
   verify: (buf: Buffer, ext: string) => { ok: boolean; reason?: string };
 }
+
+const MAX_ZIP_UNCOMPRESSED_BYTES = 250 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 10000;
+const OOXML_EXTS = new Set(['.docx', '.xlsx', '.pptx']);
+const ODF_EXTS = new Set(['.odt', '.ods', '.odp']);
+const ZIP_BASED_OFFICE_EXTS = new Set([...OOXML_EXTS, ...ODF_EXTS]);
 
 function startsWithBytes(buf: Buffer, bytes: number[], offset = 0): boolean {
   if (buf.length < offset + bytes.length) return false;
@@ -64,18 +74,110 @@ function startsWithBytes(buf: Buffer, bytes: number[], offset = 0): boolean {
   return true;
 }
 
+function decodePdfNameEscapes(nameToken: string): string {
+  return nameToken.replace(/#([0-9a-fA-F]{2})/g, (_m, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+}
+
+function maskSafePdfUris(rawText: string): { masked: string; hasUnsafeUriScheme: boolean } {
+  let out = '';
+  let i = 0;
+  let hasUnsafeUriScheme = false;
+  let inComment = false;
+
+  while (i < rawText.length) {
+    const ch = rawText[i];
+    if (ch === '\r' || ch === '\n') {
+      inComment = false;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (inComment) {
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === '%') {
+      inComment = true;
+      out += ch;
+      i++;
+      continue;
+    }
+
+    const prev = i === 0 ? ' ' : rawText[i - 1];
+    if (
+      rawText.startsWith('/URI', i) &&
+      /[\s<>()\[\]{}/]/.test(prev)
+    ) {
+      let j = i + 4;
+      while (j < rawText.length && (rawText[j] === ' ' || rawText[j] === '\t')) j++;
+      if (rawText[j] === '(') {
+        let depth = 1;
+        let k = j + 1;
+        let broken = false;
+        while (k < rawText.length && depth > 0) {
+          const c = rawText[k];
+          if (c === '\r' || c === '\n') {
+            broken = true;
+            break;
+          }
+          if (c === '\\' && k + 1 < rawText.length) {
+            k += 2;
+            continue;
+          }
+          if (c === '(') depth++;
+          else if (c === ')') depth--;
+          k++;
+        }
+        if (!broken && depth === 0) {
+          const uriBody = rawText.slice(j + 1, k - 1);
+          if (/^\s*(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/i.test(uriBody)) {
+            hasUnsafeUriScheme = true;
+          }
+          out += rawText.slice(i, j + 1) + ')';
+          i = k;
+          continue;
+        }
+      }
+    }
+
+    out += ch;
+    i++;
+  }
+
+  return { masked: out, hasUnsafeUriScheme };
+}
+
 function verifyPdfBuffer(buf: Buffer): { ok: boolean; reason?: string } {
   // %PDF-
   if (!startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
     return { ok: false, reason: 'Invalid PDF header signature' };
   }
   const rawText = buf.toString('latin1');
-  // Decode PDF Name hex escapes (e.g. /#4aavaScript or /#4A#53) before inspecting action names
-  const decodedText = rawText.replace(/#([0-9a-fA-F]{2})/g, (_m, hex) =>
-    String.fromCharCode(parseInt(hex, 16))
-  );
-  if (/\/(?:JavaScript|JS|Launch|SubmitForm|ImportData|RichMedia)\b/i.test(decodedText)) {
+  const { masked: withoutUris, hasUnsafeUriScheme } = maskSafePdfUris(rawText);
+
+  if (hasUnsafeUriScheme) {
     return { ok: false, reason: 'PDF contains disallowed active or script actions' };
+  }
+
+  // Match chained PDF Name sequences (e.g. /Type/Catalog/OpenAction, [1 0 R]/JS) and decode #XX escapes
+  // only inside PDF Name tokens rather than across compressed binary streams.
+  const nameChainRegex = /(?<=^|[\s<>()\[\]{}/])((?:\/[A-Za-z0-9_.#-]+)+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = nameChainRegex.exec(withoutUris)) !== null) {
+    const tokens = match[1].split('/').filter(Boolean);
+    for (const tok of tokens) {
+      const decodedName = `/${decodePdfNameEscapes(tok)}`;
+      if (
+        /^\/(?:JavaScript|JS|Launch|SubmitForm|ImportData|RichMedia|OpenAction|AA|GoToR|GoToE)$/i.test(
+          decodedName
+        )
+      ) {
+        return { ok: false, reason: 'PDF contains disallowed active or script actions' };
+      }
+    }
   }
   return { ok: true };
 }
@@ -95,13 +197,26 @@ function verifyImageBuffer(
   return { ok: true };
 }
 
+const VBA_PROJECT_UTF16LE = Buffer.from('_VBA_PROJECT', 'utf16le');
+
 function verifyOle2Buffer(buf: Buffer): { ok: boolean; reason?: string } {
   // D0 CF 11 E0 A1 B1 1A E1
   if (!startsWithBytes(buf, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) {
     return { ok: false, reason: 'Invalid Office document signature' };
   }
-  const text = buf.toString('latin1');
-  if (/_VBA_PROJECT|VBAProject/i.test(text)) {
+  // OLE2 directory entry stream names are UTF-16LE (check exact bytes + case-insensitive
+  // UTF-16LE across both alignments, plus Latin-1 for embedded project references).
+  if (buf.includes(VBA_PROJECT_UTF16LE)) {
+    return { ok: false, reason: 'Office documents with embedded macros are not allowed' };
+  }
+  const utf16Even = buf.toString('utf16le');
+  const utf16Odd = buf.length > 1 ? buf.subarray(1).toString('utf16le') : '';
+  const latin1 = buf.toString('latin1');
+  if (
+    /_VBA_PROJECT|VBAProject/i.test(utf16Even) ||
+    /_VBA_PROJECT|VBAProject/i.test(utf16Odd) ||
+    /_VBA_PROJECT|VBAProject/i.test(latin1)
+  ) {
     return { ok: false, reason: 'Office documents with embedded macros are not allowed' };
   }
   return { ok: true };
@@ -114,6 +229,42 @@ function isPrintableEntryName(slice: Buffer): boolean {
     if (b < 0x20 || b === 0x7f) return false;
   }
   return true;
+}
+
+/**
+ * Extract Info-ZIP Unicode Path Extra Field (tag 0x7075) if present so a crafted archive
+ * cannot smuggle path traversal in the UTF-8 extra field while keeping a clean base name.
+ */
+function extractUnicodeExtraPath(extra: Buffer): string | null {
+  let pos = 0;
+  while (pos + 4 <= extra.length) {
+    const tag = extra.readUInt16LE(pos);
+    const size = extra.readUInt16LE(pos + 2);
+    if (pos + 4 + size > extra.length) break;
+    if (tag === 0x7075 && size >= 5) {
+      return extra.subarray(pos + 9, pos + 4 + size).toString('utf8');
+    }
+    pos += 4 + size;
+  }
+  return null;
+}
+
+function findEocdOffset(buf: Buffer): number {
+  const minOffset = Math.max(0, buf.length - 65557);
+  for (let i = buf.length - 22; i >= minOffset; i--) {
+    if (
+      buf[i] === 0x50 &&
+      buf[i + 1] === 0x4b &&
+      buf[i + 2] === 0x05 &&
+      buf[i + 3] === 0x06
+    ) {
+      const commentLen = buf.readUInt16LE(i + 20);
+      if (i + 22 + commentLen === buf.length) {
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason?: string } {
@@ -134,9 +285,77 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
     return { ok: false, reason: 'Corrupted archive header' };
   }
 
-  // Walk every offset i++ across the buffer without jumping over `extraLen` so a crafted
-  // fake header inside uncompressed payload data can never skip over a subsequent real header.
   const entryNames: string[] = [];
+  let totalUncompressedBytes = 0;
+
+  // When an End of Central Directory (EOCD) record is present, strictly walk the entire
+  // Central Directory and verify it spans exactly [cdOffset, eocdOffset) with matching entry count.
+  const eocdOffset = findEocdOffset(buf);
+  if (eocdOffset >= 0) {
+    const totalEntries = buf.readUInt16LE(eocdOffset + 10);
+    const cdSize = buf.readUInt32LE(eocdOffset + 12);
+    const cdOffset = buf.readUInt32LE(eocdOffset + 16);
+    if (
+      cdOffset === 0xffffffff ||
+      cdSize === 0xffffffff ||
+      totalEntries === 0xffff ||
+      cdOffset + cdSize !== eocdOffset ||
+      (totalEntries === 0) !== (cdSize === 0) ||
+      totalEntries > MAX_ZIP_ENTRIES
+    ) {
+      return { ok: false, reason: 'Corrupted or unsupported archive directory' };
+    }
+    let pos = cdOffset;
+    let parsedEntries = 0;
+    while (pos < cdOffset + cdSize) {
+      if (
+        pos + 46 > cdOffset + cdSize ||
+        buf[pos] !== 0x50 ||
+        buf[pos + 1] !== 0x4b ||
+        buf[pos + 2] !== 0x01 ||
+        buf[pos + 3] !== 0x02
+      ) {
+        return { ok: false, reason: 'Corrupted archive central directory' };
+      }
+      const uncompressedSize = buf.readUInt32LE(pos + 24);
+      const nameLen = buf.readUInt16LE(pos + 28);
+      const extraLen = buf.readUInt16LE(pos + 30);
+      const commentLen = buf.readUInt16LE(pos + 32);
+      const nameStart = pos + 46;
+      const nameEnd = nameStart + nameLen;
+      if (
+        nameLen === 0 ||
+        nameLen > 1024 ||
+        nameEnd + extraLen + commentLen > cdOffset + cdSize ||
+        !isPrintableEntryName(buf.subarray(nameStart, nameEnd))
+      ) {
+        return { ok: false, reason: 'Corrupted archive central directory entry' };
+      }
+      if (uncompressedSize === 0xffffffff) {
+        return { ok: false, reason: 'Unsupported archive entry size' };
+      }
+      totalUncompressedBytes += uncompressedSize;
+      if (totalUncompressedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
+        return { ok: false, reason: 'Archive uncompressed size exceeds safety limit' };
+      }
+      entryNames.push(buf.subarray(nameStart, nameEnd).toString('utf8'));
+      const unicodeExtra = extractUnicodeExtraPath(buf.subarray(nameEnd, nameEnd + extraLen));
+      if (unicodeExtra) entryNames.push(unicodeExtra);
+      pos = nameEnd + extraLen + commentLen;
+      parsedEntries++;
+      if (parsedEntries > MAX_ZIP_ENTRIES) {
+        return { ok: false, reason: 'Archive contains too many entries' };
+      }
+    }
+    if (parsedEntries !== totalEntries) {
+      return { ok: false, reason: 'Corrupted archive central directory count' };
+    }
+  }
+
+  // Also scan every offset i++ across the buffer without jumping over `extraLen` so a crafted
+  // fake header inside uncompressed payload data can never skip over a subsequent real header
+  // (also covers header-only archives without an EOCD record).
+  let lfhUncompressedSum = 0;
   for (let i = 0; i <= buf.length - 30; i++) {
     // Local file header: 50 4B 03 04
     if (
@@ -145,6 +364,7 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
       buf[i + 2] === 0x03 &&
       buf[i + 3] === 0x04
     ) {
+      const uncompressedSize = buf.readUInt32LE(i + 22);
       const nameLen = buf.readUInt16LE(i + 26);
       const extraLen = buf.readUInt16LE(i + 28);
       const nameStart = i + 30;
@@ -155,17 +375,31 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
         nameEnd + extraLen <= buf.length &&
         isPrintableEntryName(buf.subarray(nameStart, nameEnd))
       ) {
+        if (uncompressedSize === 0xffffffff) {
+          return { ok: false, reason: 'Unsupported archive entry size' };
+        }
+        lfhUncompressedSum += uncompressedSize;
+        if (
+          uncompressedSize > MAX_ZIP_UNCOMPRESSED_BYTES ||
+          (eocdOffset < 0 && lfhUncompressedSum > MAX_ZIP_UNCOMPRESSED_BYTES)
+        ) {
+          return { ok: false, reason: 'Archive entry uncompressed size exceeds safety limit' };
+        }
         entryNames.push(buf.subarray(nameStart, nameEnd).toString('utf8'));
+        const unicodeExtra = extractUnicodeExtraPath(buf.subarray(nameEnd, nameEnd + extraLen));
+        if (unicodeExtra) entryNames.push(unicodeExtra);
       }
     }
-    // Central directory header: 50 4B 01 02
+    // Central directory header fallback (only when no EOCD record exists)
     if (
+      eocdOffset < 0 &&
       i <= buf.length - 46 &&
       buf[i] === 0x50 &&
       buf[i + 1] === 0x4b &&
       buf[i + 2] === 0x01 &&
       buf[i + 3] === 0x02
     ) {
+      const uncompressedSize = buf.readUInt32LE(i + 24);
       const nameLen = buf.readUInt16LE(i + 28);
       const extraLen = buf.readUInt16LE(i + 30);
       const commentLen = buf.readUInt16LE(i + 32);
@@ -177,7 +411,12 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
         nameEnd + extraLen + commentLen <= buf.length &&
         isPrintableEntryName(buf.subarray(nameStart, nameEnd))
       ) {
+        if (uncompressedSize === 0xffffffff || uncompressedSize > MAX_ZIP_UNCOMPRESSED_BYTES) {
+          return { ok: false, reason: 'Archive entry uncompressed size exceeds safety limit' };
+        }
         entryNames.push(buf.subarray(nameStart, nameEnd).toString('utf8'));
+        const unicodeExtra = extractUnicodeExtraPath(buf.subarray(nameEnd, nameEnd + extraLen));
+        if (unicodeExtra) entryNames.push(unicodeExtra);
       }
     }
   }
@@ -186,6 +425,7 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
     return { ok: false, reason: 'Archive contains no valid entries' };
   }
 
+  const normalizedNames = new Set<string>();
   for (const name of entryNames) {
     if (
       name.includes('\x00') ||
@@ -196,22 +436,111 @@ function verifyZipOrOoxmlBuffer(buf: Buffer, ext: string): { ok: boolean; reason
     ) {
       return { ok: false, reason: 'Archive contains unsafe path traversal entry' };
     }
-    if (/vbaProject\.bin$/i.test(name) || /(?:^|[\\/])macros[\\/]/i.test(name)) {
+    if (
+      /vbaProject\.bin$/i.test(name) ||
+      /(?:^|[\\/])macros[\\/]/i.test(name) ||
+      (ODF_EXTS.has(ext) && /(?:^|[\\/])(?:Basic|Scripts)[\\/]/i.test(name))
+    ) {
       return { ok: false, reason: 'Documents with embedded macros are not allowed' };
     }
+    normalizedNames.add(name.replace(/\\/g, '/').toLowerCase());
   }
 
   const raw = buf.toString('latin1');
   if (/vbaProject\.bin/i.test(raw) || /_VBA_PROJECT/i.test(raw)) {
     return { ok: false, reason: 'Documents with embedded macros are not allowed' };
   }
-  if (ext !== '.zip') {
-    if (/<!ENTITY\b/i.test(raw) || /<!DOCTYPE\b/i.test(raw)) {
-      return { ok: false, reason: 'Document contains disallowed XML DTD/entity declarations' };
-    }
+
+  if (OOXML_EXTS.has(ext) && !normalizedNames.has('[content_types].xml')) {
+    return { ok: false, reason: 'Invalid Office XML package structure' };
+  }
+  if (ODF_EXTS.has(ext) && !normalizedNames.has('mimetype')) {
+    return { ok: false, reason: 'Invalid OpenDocument package structure' };
   }
 
   return { ok: true };
+}
+
+/**
+ * Linear-time O(N) CSV formula / DDE injection detector (no regex backtracking).
+ * Rejects cells whose unquoted content starts with `=`, `@` (formula), or `+`/`-` when
+ * non-numeric (e.g. `=CMD|...`, `+1+CMD|...`, `-1+CMD|...`, `@SUM(...)`), while permitting
+ * plain signed numbers like `-42` or `+3.14`.
+ */
+function hasUnsafeCsvFormula(text: string): boolean {
+  let i = 0;
+  const len = text.length;
+  let atCellStart = true;
+  let inQuotes = false;
+
+  const isHorizontalWs = (ch: string) =>
+    ch === '\uFEFF' || ch === ' ' || ch === '\t' || ch === '\v' || ch === '\f';
+
+  while (i < len) {
+    if (atCellStart) {
+      while (i < len && isHorizontalWs(text[i])) {
+        i++;
+      }
+      if (i >= len) break;
+
+      let cellQuoted = false;
+      if (text[i] === '"') {
+        cellQuoted = true;
+        inQuotes = true;
+        i++;
+        while (i < len && isHorizontalWs(text[i])) {
+          i++;
+        }
+      }
+
+      if (i < len) {
+        const first = text[i];
+        if (first === '=' || first === '@') {
+          return true;
+        }
+        if (first === '+' || first === '-') {
+          // Read until end of CSV cell (comma, semicolon, or newline; never break on tab inside CSV cell)
+          let j = i;
+          while (j < len) {
+            const ch = text[j];
+            if (cellQuoted) {
+              if (ch === '"') {
+                if (j + 1 < len && text[j + 1] === '"') {
+                  j += 2;
+                  continue;
+                }
+                break;
+              }
+            } else if (ch === ',' || ch === ';' || ch === '\r' || ch === '\n') {
+              break;
+            }
+            j++;
+          }
+          const cellVal = text.slice(i, j).trim();
+          // Allow purely numeric signed values like -42 or +3.14; reject expressions like +1+CMD or -1\t&HYPERLINK
+          if (!/^[+-]\d+(?:\.\d+)?$/.test(cellVal)) {
+            return true;
+          }
+        }
+      }
+      atCellStart = false;
+      continue;
+    }
+
+    const ch = text[i];
+    if (ch === '"') {
+      if (inQuotes && i + 1 < len && text[i + 1] === '"') {
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+    } else if (!inQuotes && (ch === ',' || ch === ';' || ch === '\r' || ch === '\n')) {
+      atCellStart = true;
+    }
+    i++;
+  }
+
+  return false;
 }
 
 function verifyTextOrCsvBuffer(buf: Buffer, ext: string): { ok: boolean; reason?: string } {
@@ -249,13 +578,39 @@ function verifyTextOrCsvBuffer(buf: Buffer, ext: string): { ok: boolean; reason?
   }
 
   if (ext === '.csv') {
-    // Guard against spreadsheet formula / DDE injection (=CMD, +CMD, -CMD, @SUM), including quoted cells or UTF-8 BOM
-    if (/(?:^|[,;\t\r\n])[\s"\uFEFF]*(?:=|\+\s*[A-Za-z_@]|\-\s*[A-Za-z_@]|@\s*[A-Za-z_])/m.test(text)) {
+    if (hasUnsafeCsvFormula(text)) {
       return { ok: false, reason: 'CSV contains potentially unsafe spreadsheet formulas' };
     }
   }
 
   return { ok: true };
+}
+
+function hasUnsafeRtfFldinst(text: string): boolean {
+  const fldinstRegex = /\\fldinst\b/gi;
+  let match: RegExpExecArray | null;
+  while ((match = fldinstRegex.exec(text)) !== null) {
+    // Walk forward tracking brace depth so nested groups like {\f1 } inside \fldinst cannot bypass
+    let depth = 1;
+    let i = match.index + match[0].length;
+    while (i < text.length && depth > 0) {
+      const ch = text[i];
+      if (ch === '\\' && i + 1 < text.length) {
+        i += 2;
+        continue;
+      }
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+      i++;
+    }
+    const groupSlice = text.slice(match.index, i).replace(/\\'[0-9a-fA-F]{2}/g, (m) =>
+      String.fromCharCode(parseInt(m.slice(2), 16))
+    );
+    if (/\b(?:DDE|DDEAUTO|INCLUDEPICTURE|LINK)\b/i.test(groupSlice)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function verifyRtfBuffer(buf: Buffer): { ok: boolean; reason?: string } {
@@ -264,7 +619,12 @@ function verifyRtfBuffer(buf: Buffer): { ok: boolean; reason?: string } {
     return { ok: false, reason: 'Invalid RTF signature' };
   }
   const text = buf.toString('latin1');
-  if (/\\(?:objdata|objemb|objautlink|objocx|objhtml|objupdate)\b/i.test(text)) {
+  if (
+    /\\(?:object|objdata|objemb|objautlink|objlink|objocx|objhtml|objupdate|objclass)\b/i.test(
+      text
+    ) ||
+    hasUnsafeRtfFldinst(text)
+  ) {
     return { ok: false, reason: 'RTF contains disallowed embedded objects' };
   }
   return { ok: true };
@@ -518,9 +878,11 @@ export function sanitizeFilename(rawName: string): {
   const rawStem = ext ? base.slice(0, base.length - ext.length) : base;
 
   // Detect dangerous double extensions like "invoice.php.jpg", "shell.php.en.jpg", or "payload.exe .pdf"
+  // while allowing legitimate single-extension names like "js.pdf" or "svg.png".
   const DANGEROUS_INNER_EXT =
-    /(?:^|\.)(?:php\d?|phtml|phar|exe|dll|bat|cmd|sh|bash|zsh|ps1|vbs|js|mjs|cjs|jsp|asp|aspx|py|rb|pl|cgi|htaccess|svg|html?|xhtml|ssi|wasm)\s*(?:\.|$)/i;
-  const hasDangerousDoubleExtension = DANGEROUS_INNER_EXT.test(rawStem);
+    /\.(?:php\d?|phtml|phar|exe|dll|bat|cmd|sh|bash|zsh|ps1|vbs|js|mjs|cjs|jsp|asp|aspx|py|rb|pl|cgi|htaccess|svg|html?|xhtml|ssi|wasm)\s*(?:\.|$)/i;
+  const hasDangerousDoubleExtension =
+    DANGEROUS_INNER_EXT.test(rawStem) || /^(?:\.?)htaccess$/i.test(rawStem);
 
   let stem = rawStem
     .replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -549,8 +911,8 @@ export function sanitizeFilename(rawName: string): {
 }
 
 /**
- * Verify that a temporary file path is safely located inside the OS temporary directory
- * and is a regular file (not a symlink or directory).
+ * Verify that a temporary upload file path (provided by formidable/koa-body)
+ * points to an existing regular file and is not a symlink or directory.
  */
 export function verifyTempFilePath(filepath: string): {
   ok: boolean;
@@ -566,26 +928,94 @@ export function verifyTempFilePath(filepath: string): {
     if (lstat.isSymbolicLink() || !lstat.isFile()) {
       return { ok: false, reason: 'Temporary upload path must be a regular file' };
     }
-    const realTmp = fs.realpathSync(os.tmpdir());
     const realFile = fs.realpathSync(filepath);
-    const prefix = realTmp.endsWith(path.sep) ? realTmp : realTmp + path.sep;
-    if (!realFile.startsWith(prefix)) {
-      return { ok: false, reason: 'Temporary upload path is outside the system temp directory' };
-    }
     return { ok: true, realPath: realFile, size: lstat.size };
   } catch {
     return { ok: false, reason: 'Temporary upload file could not be accessed' };
   }
 }
 
+function matchesMimePattern(mimeType: string, patterns?: string[]): boolean {
+  if (!Array.isArray(patterns) || patterns.length === 0) return false;
+  const normalizedMime = mimeType.toLowerCase();
+  return patterns.some((pattern) => {
+    if (typeof pattern !== 'string' || !pattern.trim()) return false;
+    const normalizedPattern = pattern.trim().toLowerCase();
+    if (normalizedPattern.includes('*')) {
+      const escaped = normalizedPattern
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*');
+      return new RegExp(`^${escaped}$`).test(normalizedMime);
+    }
+    return normalizedPattern === normalizedMime;
+  });
+}
+
+/**
+ * Read Strapi's `plugin::upload.security` configuration safely using array-path lookup
+ * (avoiding lodash dot-splitting on `'plugin::upload'`).
+ */
+export function getUploadSecurityConfig(strapi: any): UploadSecurityConfig {
+  const cfg =
+    strapi?.config?.get?.(['plugin::upload', 'security'], {}) ??
+    strapi?.config?.get?.('plugin::upload')?.security ??
+    {};
+  if (!cfg || typeof cfg !== 'object') return {};
+  const result: UploadSecurityConfig = {};
+  if (Array.isArray(cfg.allowedTypes)) {
+    result.allowedTypes = cfg.allowedTypes.filter((x: unknown): x is string => typeof x === 'string');
+  }
+  if (Array.isArray(cfg.deniedTypes)) {
+    result.deniedTypes = cfg.deniedTypes.filter((x: unknown): x is string => typeof x === 'string');
+  }
+  return result;
+}
+
+/**
+ * Enforce Strapi's host `upload.security` `allowedTypes` / `deniedTypes` policy
+ * (mirrors `@strapi/upload`'s `mime-validation` semantics).
+ */
+export function isAllowedByUploadSecurity(
+  mime: string,
+  ext: string,
+  security?: UploadSecurityConfig
+): { ok: boolean; reason?: string } {
+  if (!security || typeof security !== 'object') return { ok: true };
+  const { allowedTypes, deniedTypes } = security;
+
+  if (Array.isArray(deniedTypes) && deniedTypes.length > 0) {
+    if (
+      matchesMimePattern(mime, deniedTypes) ||
+      (ZIP_BASED_OFFICE_EXTS.has(ext) && matchesMimePattern('application/zip', deniedTypes))
+    ) {
+      return { ok: false, reason: `File type "${mime}" is denied by host upload security policy` };
+    }
+  }
+
+  if (Array.isArray(allowedTypes)) {
+    if (allowedTypes.length === 0) {
+      return { ok: false, reason: 'Host upload security policy allow list is empty' };
+    }
+    if (!matchesMimePattern(mime, allowedTypes)) {
+      return {
+        ok: false,
+        reason: `File type "${mime}" is not permitted by host upload security policy`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 /**
  * Validate and sanitize all uploaded files for a single `file` field.
  * Checks required constraint, file count, byte size, extension allow-list,
- * double-extension attacks, and binary magic bytes / active content signatures.
+ * host upload security policy, double-extension attacks, and binary magic bytes.
  */
 export function validateUploadedFilesForField(
   field: FileFieldConfig,
-  rawFiles: RawUploadedFile[] | undefined
+  rawFiles: RawUploadedFile[] | undefined,
+  options?: { uploadSecurity?: UploadSecurityConfig }
 ): {
   valid: boolean;
   errors: string[];
@@ -639,6 +1069,13 @@ export function validateUploadedFilesForField(
       continue;
     }
 
+    const typeSpec = SAFE_FILE_TYPES[ext];
+    const policyCheck = isAllowedByUploadSecurity(typeSpec.mime, ext, options?.uploadSecurity);
+    if (!policyCheck.ok) {
+      errors.push(`${label}: ${policyCheck.reason}`);
+      continue;
+    }
+
     const pathCheck = verifyTempFilePath(rawFile.filepath);
     if (!pathCheck.ok || !pathCheck.realPath || pathCheck.size === undefined) {
       errors.push(`${label}: ${pathCheck.reason || 'invalid upload file'}`);
@@ -664,7 +1101,6 @@ export function validateUploadedFilesForField(
       continue;
     }
 
-    const typeSpec = SAFE_FILE_TYPES[ext];
     const verification = typeSpec.verify(buf, ext);
     if (!verification.ok) {
       errors.push(

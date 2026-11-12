@@ -132,6 +132,8 @@ These routes require no authentication and are safe to call from the browser.
 
 ### Submit payload
 
+For forms without file fields (`application/json`):
+
 ```json
 {
   "data": {
@@ -140,6 +142,11 @@ These routes require no authentication and are safe to call from the browser.
   }
 }
 ```
+
+For forms with `file` fields (`multipart/form-data`):
+
+- `data`: JSON string containing the non-file field values (same shape as above)
+- `files.<fieldName>`: one or more file parts matching the `file` field's `name`
 
 ### Submit response — success
 

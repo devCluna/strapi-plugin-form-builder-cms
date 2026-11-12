@@ -105,10 +105,17 @@ export function publicSchemaFrom(form: any) {
   // Legacy fallback: forms published before publishedData existed serve their current copy.
   const p = form.publishedData || snapshotOf(form);
   const settings = p.settings || {};
-  // Never leak the CAPTCHA secret key to the browser — strip it, keep the public site key.
-  const safeSettings = settings.captcha
-    ? { ...settings, captcha: { provider: settings.captcha.provider, siteKey: settings.captcha.siteKey } }
-    : settings;
+  // Never leak CAPTCHA secret keys or internal notification email lists to the browser.
+  const { notificationEmails: _notificationEmails, ...publicSettings } = settings;
+  const safeSettings = publicSettings.captcha
+    ? {
+        ...publicSettings,
+        captcha: {
+          provider: publicSettings.captcha.provider,
+          siteKey: publicSettings.captcha.siteKey,
+        },
+      }
+    : publicSettings;
   return {
     data: {
       id: form.id,

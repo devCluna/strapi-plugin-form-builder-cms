@@ -8,14 +8,19 @@ import {
   resolveMaxFiles,
   sanitizeFilename,
   validateUploadedFilesForField,
+  verifyTempFilePath,
+  cleanupTempFiles,
+  isAllowedByUploadSecurity,
+  getUploadSecurityConfig,
   formatFileCellForCsv,
   isUploadedFileList,
   HARD_MAX_SIZE_MB,
   HARD_MAX_FILES,
 } from '../server/src/lib/file-upload';
-import { validateClientFiles } from '../server/src/lib/embed';
-import submissionServiceFactory from '../server/src/services/submission';
+import { validateClientFiles, resolveClientAccept } from '../server/src/lib/embed';
+import submissionServiceFactory, { verifyCaptcha } from '../server/src/services/submission';
 import submissionController from '../server/src/controllers/submission';
+import formController from '../server/src/controllers/form';
 import validationFactory from '../server/src/services/validation';
 
 import en from '../admin/src/translations/en.json';
@@ -186,7 +191,7 @@ describe('file-upload: binary magic-byte & active content verification', () => {
     expect(res.errors[0]).toContain('disallowed active or script actions');
   });
 
-  it('rejects a ZIP/DOCX containing path traversal (ZIP Slip) or VBA macros or XXE', () => {
+  it('rejects a ZIP/DOCX containing path traversal (ZIP Slip), VBA macros, or invalid OOXML structure', () => {
     // 1. ZIP Slip with ../../evil.sh entry name
     const zipSlip = buildPkZipBuffer('../../evil.sh', '#!/bin/sh\n');
     const p1 = createTempFile(zipSlip);
@@ -210,22 +215,34 @@ describe('file-upload: binary magic-byte & active content verification', () => {
     expect(r2.valid).toBe(false);
     expect(r2.errors[0]).toContain('macros');
 
-    // 3. DOCX with XML <!ENTITY (XXE)
-    const xxeDocx = buildPkZipBuffer(
-      'word/document.xml',
-      '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><w:document/>'
-    );
-    const p3 = createTempFile(xxeDocx);
+    // 3. Plain ZIP disguised as .docx without [Content_Types].xml is rejected; valid OOXML passes
+    const plainZipAsDocx = buildPkZipBuffer('payload.txt', 'hello');
+    const p3 = createTempFile(plainZipAsDocx);
     const r3 = validateUploadedFilesForField(pdfField, [
       {
         filepath: p3,
-        originalFilename: 'xxe.docx',
+        originalFilename: 'disguised.docx',
         mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        size: xxeDocx.length,
+        size: plainZipAsDocx.length,
       },
     ]);
     expect(r3.valid).toBe(false);
-    expect(r3.errors[0]).toContain('XML DTD/entity');
+    expect(r3.errors[0]).toContain('Office XML package structure');
+
+    const validDocx = Buffer.concat([
+      buildPkZipBuffer('[Content_Types].xml', '<Types/>'),
+      buildPkZipBuffer('word/document.xml', '<w:document/>'),
+    ]);
+    const p4 = createTempFile(validDocx);
+    const r4 = validateUploadedFilesForField(pdfField, [
+      {
+        filepath: p4,
+        originalFilename: 'resume.docx',
+        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        size: validDocx.length,
+      },
+    ]);
+    expect(r4.valid).toBe(true);
   });
 
   it('rejects CSV files with spreadsheet formula injection payloads', () => {
@@ -709,5 +726,420 @@ describe('i18n parity for file upload translations across all 6 locales', () => 
         expect((dict as Record<string, string>)[k], `Missing ${k} in ${code}.json`).toBeTruthy();
       }
     }
+  });
+
+  it('aligns preview.fileConstraint* placeholders ({size}, {count}) across all 6 locales', () => {
+    for (const [code, dict] of Object.entries(locales)) {
+      const d = dict as Record<string, string>;
+      expect(d['preview.fileConstraintSingle'], `${code} single`).toContain('{size}');
+      expect(d['preview.fileConstraintSingle'], `${code} single`).not.toMatch(/\{(?:accept|maxSizeMb|maxFiles)\}/);
+      expect(d['preview.fileConstraintMultiple'], `${code} multiple`).toContain('{size}');
+      expect(d['preview.fileConstraintMultiple'], `${code} multiple`).toContain('{count}');
+      expect(d['preview.fileConstraintMultiple'], `${code} multiple`).not.toMatch(/\{(?:accept|maxSizeMb|maxFiles)\}/);
+    }
+  });
+});
+
+describe('hardening & regression fixes', () => {
+  const customDir = path.join(process.cwd(), '.tmp-custom-upload-test');
+
+  afterEach(() => {
+    try {
+      fs.rmSync(customDir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  });
+
+  it('accepts and cleans up temp files from a custom formidable.uploadDir outside os.tmpdir()', () => {
+    fs.mkdirSync(customDir, { recursive: true });
+    const validPdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF', 'latin1');
+    const customPath = path.join(customDir, `upload-${Date.now()}.pdf`);
+    fs.writeFileSync(customPath, validPdf);
+
+    const check = verifyTempFilePath(customPath);
+    expect(check.ok).toBe(true);
+    expect(check.size).toBe(validPdf.length);
+
+    cleanupTempFiles({ files: [{ filepath: customPath }] });
+    expect(fs.existsSync(customPath)).toBe(false);
+  });
+
+  it('detects UTF-16LE _VBA_PROJECT streams in OLE2 (.doc/.xls/.ppt) files and allows clean OLE2', () => {
+    const ole2Header = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]);
+    const docField = { name: 'doc', label: 'Doc', accept: '.doc,.xls,.ppt', maxSizeMb: 5 };
+
+    const cleanPath = createTempFile(ole2Header);
+    expect(
+      validateUploadedFilesForField(docField, [
+        { filepath: cleanPath, originalFilename: 'clean.doc', size: ole2Header.length },
+      ]).valid
+    ).toBe(true);
+
+    const utf16Macro = Buffer.concat([ole2Header, Buffer.from('_VBA_PROJECT', 'utf16le')]);
+    const macroPath = createTempFile(utf16Macro);
+    const res = validateUploadedFilesForField(docField, [
+      { filepath: macroPath, originalFilename: 'macro.doc', size: utf16Macro.length },
+    ]);
+    expect(res.valid).toBe(false);
+    expect(res.errors[0]).toContain('macros');
+  });
+
+  it('enforces host plugin::upload.security allowedTypes and deniedTypes in submission service', async () => {
+    const validPdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF', 'latin1');
+    const filepath = createTempFile(validPdf);
+
+    const uploadFn = vi.fn(async () => [{ id: 1, url: '/uploads/a.pdf', mime: 'application/pdf' }]);
+    const createSubFn = vi.fn(async ({ data }) => ({ id: 1, ...data }));
+    const strapiWithPolicy = (security: any): any => ({
+      config: {
+        get: (key: any, def?: any) => {
+          if (Array.isArray(key) && key[0] === 'plugin::upload' && key[1] === 'security') return security;
+          return def;
+        },
+      },
+      plugin: (name: string) => {
+        if (name === 'strapi-plugin-form-builder-cms') {
+          return {
+            service: (svc: string) => {
+              if (svc === 'form') {
+                return {
+                  findBySlug: vi.fn(async () => ({
+                    id: 1,
+                    slug: 'docs',
+                    publishedAt: '2026-01-01T00:00:00.000Z',
+                    publishedData: {
+                      fields: [
+                        { id: 'f1', type: 'file', name: 'doc', label: 'Doc', required: true, accept: '.pdf,.png,.docx' },
+                      ],
+                      settings: {},
+                    },
+                  })),
+                };
+              }
+              if (svc === 'validation') return validationFactory();
+              return {};
+            },
+          };
+        }
+        if (name === 'upload') {
+          return {
+            service: (svc: string) => (svc === 'upload' ? { upload: uploadFn, remove: vi.fn() } : {}),
+          };
+        }
+        return {};
+      },
+      db: {
+        query: () => ({ count: vi.fn(async () => 0), create: createSubFn }),
+      },
+    });
+
+    // Denied by allowedTypes: ['image/*']
+    const svc1 = submissionServiceFactory({ strapi: strapiWithPolicy({ allowedTypes: ['image/*'] }) });
+    await expect(
+      svc1.submit('docs', {}, { ip: '127.0.0.1', userAgent: 'Vitest' }, {
+        doc: [{ filepath, originalFilename: 'cv.pdf', size: validPdf.length }],
+      })
+    ).rejects.toThrow('Validation failed');
+    expect(uploadFn).not.toHaveBeenCalled();
+
+    // Denied by deniedTypes: ['application/pdf']
+    const svc2 = submissionServiceFactory({ strapi: strapiWithPolicy({ deniedTypes: ['application/pdf'] }) });
+    await expect(
+      svc2.submit('docs', {}, { ip: '127.0.0.1', userAgent: 'Vitest' }, {
+        doc: [{ filepath, originalFilename: 'cv.pdf', size: validPdf.length }],
+      })
+    ).rejects.toThrow('Validation failed');
+    expect(uploadFn).not.toHaveBeenCalled();
+
+    // Direct helper checks: empty allowedTypes denies all; application/zip deny blocks .docx
+    expect(isAllowedByUploadSecurity('image/png', '.png', { allowedTypes: [] }).ok).toBe(false);
+    expect(
+      isAllowedByUploadSecurity(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.docx',
+        { deniedTypes: ['application/zip'] }
+      ).ok
+    ).toBe(false);
+    expect(getUploadSecurityConfig(strapiWithPolicy({ allowedTypes: ['image/*'] }))).toEqual({
+      allowedTypes: ['image/*'],
+    });
+  });
+
+  it('strips undeclared submission keys and prevents attachment spoofing in CSV export', async () => {
+    const createSubFn = vi.fn(async ({ data }) => ({ id: 1, ...data }));
+    const mockForm = {
+      id: 1,
+      slug: 'contact',
+      publishedAt: '2026-01-01T00:00:00.000Z',
+      fields: [
+        { id: 'f1', type: 'text', name: 'name', label: 'Name', required: true },
+        { id: 'f2', type: 'file', name: 'cv', label: 'CV', required: false },
+      ],
+      publishedData: {
+        fields: [
+          { id: 'f1', type: 'text', name: 'name', label: 'Name', required: true },
+          { id: 'f2', type: 'file', name: 'cv', label: 'CV', required: false },
+        ],
+        settings: {},
+      },
+    };
+    const mockStrapi: any = {
+      plugin: (n: string) =>
+        n === 'strapi-plugin-form-builder-cms'
+          ? {
+              service: (s: string) =>
+                s === 'form'
+                  ? { findBySlug: vi.fn(async () => mockForm) }
+                  : s === 'validation'
+                    ? validationFactory()
+                    : {},
+            }
+          : {},
+      db: {
+        query: () => ({
+          findOne: vi.fn(async () => mockForm),
+          create: createSubFn,
+          findMany: vi.fn(async () => [
+            {
+              id: 5,
+              status: 'new',
+              createdAt: '2026-01-01',
+              fields: [{ name: 'name', type: 'text' }],
+              data: {
+                name: [{ name: 'phish.pdf', url: 'https://evil.example/login' }],
+              },
+            },
+          ]),
+        }),
+      },
+    };
+
+    const svc = submissionServiceFactory({ strapi: mockStrapi });
+    await svc.submit(
+      'contact',
+      {
+        name: 'Alice',
+        forgedKey: [{ name: 'evil.pdf', url: 'https://evil.example' }],
+      },
+      { ip: '127.0.0.1', userAgent: 'Vitest' }
+    );
+    const saved = createSubFn.mock.calls[0][0].data.data;
+    expect(saved.name).toBe('Alice');
+    expect('forgedKey' in saved).toBe(false);
+
+    const csv = await svc.export(1, 'csv');
+    expect(csv).not.toContain('phish.pdf (https://evil.example/login)');
+  });
+
+  it('allows legitimate PDFs with /URI (.../js) links, single-ext js.pdf filenames, signed numbers in CSV, and rejects numeric CSV formulas & RTF DDE', () => {
+    const field = { name: 'doc', label: 'Doc', accept: '.pdf,.csv,.rtf', maxSizeMb: 5 };
+
+    // PDF with GitHub /js link in /URI annotation should pass
+    const pdfWithUri = Buffer.from(
+      '%PDF-1.7\n1 0 obj\n<< /Type /Annot /A << /S /URI /URI (https://github.com/user/js) >> >>\nendobj\n%%EOF',
+      'latin1'
+    );
+    const p1 = createTempFile(pdfWithUri);
+    expect(
+      validateUploadedFilesForField(field, [
+        { filepath: p1, originalFilename: 'js.pdf', size: pdfWithUri.length },
+      ]).valid
+    ).toBe(true);
+    expect(sanitizeFilename('js.pdf').hasDangerousDoubleExtension).toBe(false);
+    expect(validateClientFiles([field], { doc: [{ name: 'js.pdf', size: 100 }] })).toEqual({});
+
+    // CSV: signed numbers (-42, +3.14) allowed; +1+CMD formula rejected; large newline CSV completes fast (no ReDoS)
+    const safeCsv = Buffer.from('item,delta\nA,-42\nB,+3.14\n', 'utf8');
+    const p2 = createTempFile(safeCsv);
+    expect(
+      validateUploadedFilesForField(field, [{ filepath: p2, originalFilename: 'nums.csv', size: safeCsv.length }])
+        .valid
+    ).toBe(true);
+
+    const numericFormulaCsv = Buffer.from('item,cmd\nA,+1+cmd|\'/C calc\'!A0\n', 'utf8');
+    const p3 = createTempFile(numericFormulaCsv);
+    expect(
+      validateUploadedFilesForField(field, [
+        { filepath: p3, originalFilename: 'calc.csv', size: numericFormulaCsv.length },
+      ]).valid
+    ).toBe(false);
+
+    const redosCsv = Buffer.from('\n\t'.repeat(50000) + 'safe', 'utf8');
+    const p4 = createTempFile(redosCsv);
+    const start = Date.now();
+    expect(
+      validateUploadedFilesForField(field, [{ filepath: p4, originalFilename: 'big.csv', size: redosCsv.length }])
+        .valid
+    ).toBe(true);
+    expect(Date.now() - start).toBeLessThan(500);
+
+    // RTF DDE rejected
+    const rtfDde = Buffer.from('{\\rtf1{\\field{\\*\\fldinst {DDEAUTO c:\\\\windows\\\\system32\\\\cmd.exe}}}}', 'latin1');
+    const p5 = createTempFile(rtfDde);
+    expect(
+      validateUploadedFilesForField(field, [{ filepath: p5, originalFilename: 'note.rtf', size: rtfDde.length }])
+        .valid
+    ).toBe(false);
+  });
+
+  it('maps Strapi ApplicationError to 400 and hides raw 500 error messages in submission controller', async () => {
+    const errApp = Object.assign(new Error('File is not a valid image'), { name: 'ApplicationError' });
+    (globalThis as any).strapi = {
+      plugin: () => ({
+        service: () => ({
+          submit: vi.fn(async () => {
+            throw errApp;
+          }),
+        }),
+      }),
+    };
+    const ctx1: any = { params: { slug: 's' }, request: { body: {}, headers: {}, ip: '127.0.0.1' }, status: 200, body: null };
+    await submissionController.submit(ctx1);
+    expect(ctx1.status).toBe(400);
+    expect(ctx1.body.message).toBe('File is not a valid image');
+
+    (globalThis as any).strapi = {
+      plugin: () => ({
+        service: () => ({
+          submit: vi.fn(async () => {
+            throw new Error('SELECT * FROM secret_table failed');
+          }),
+        }),
+      }),
+    };
+    const ctx2: any = { params: { slug: 's' }, request: { body: {}, headers: {}, ip: '127.0.0.1' }, status: 200, body: null };
+    await submissionController.submit(ctx2);
+    expect(ctx2.status).toBe(500);
+    expect(ctx2.body.message).toBe('Internal server error');
+  });
+
+  it('guards verifyCaptcha against non-string tokens and sanitizes servePublicPage themeVars & CSP', async () => {
+    expect(await verifyCaptcha('turnstile', 'sec', { evil: 1 } as any, '127.0.0.1')).toBe(false);
+
+    const headers: Record<string, string> = {};
+    (globalThis as any).strapi = {
+      plugin: () => ({
+        service: () => ({
+          getPublicSchema: vi.fn(async () => ({
+            data: {
+              id: 1,
+              slug: 'test',
+              title: 'Test',
+              description: '',
+              fields: [],
+              settings: {
+                publicPage: true,
+                captcha: { provider: 'turnstile', siteKey: 'pk' },
+                theme: { fieldStyle: 'outline"><script>alert(1)</script>' },
+                themeVars: {
+                  '--sfb-bg': '#fff',
+                  '</style><script>alert(1)</script>': 'x',
+                },
+              },
+            },
+          })),
+        }),
+      }),
+    };
+    const ctx: any = {
+      params: { slug: 'test' },
+      set: (k: string, v: string) => {
+        headers[k] = v;
+      },
+      notFound: vi.fn(),
+      body: '',
+    };
+    await formController.servePublicPage(ctx);
+    expect(ctx.body).not.toContain('<script>alert(1)</script>');
+    expect(headers['Content-Security-Policy']).toContain("frame-ancestors 'self'");
+    expect(headers['Content-Security-Policy']).toContain('https://challenges.cloudflare.com');
+    expect(headers['Content-Security-Policy']).not.toContain('www.google.com');
+  });
+
+  it('catches PDF chained names & comment /URI bypass, ZIP Zip64/EOCD bypass, CSV tab-formula bypass, and RTF nested fldinst bypass', () => {
+    const field = { name: 'doc', label: 'Doc', accept: '.pdf,.zip,.csv,.rtf', maxSizeMb: 5 };
+
+    // 1. PDF chained names & % /URI ( comment bypass & javascript: /URI
+    for (const payload of [
+      '%PDF-1.7\n1 0 obj\n<</Type/Catalog/OpenAction 2 0 R>>\nendobj\n%%EOF',
+      '%PDF-1.7\n1 0 obj\n<< /Type /Action /S/JavaScript /JS(app.alert(1)) >>\nendobj\n%%EOF',
+      '%PDF-1.7\n% /URI (\n1 0 obj << /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >> endobj\n%%EOF',
+      '%PDF-1.7\n1 0 obj\n<< /URI (javascript:alert(1)) >>\nendobj\n%%EOF',
+    ]) {
+      const p = createTempFile(Buffer.from(payload, 'latin1'));
+      expect(
+        validateUploadedFilesForField(field, [{ filepath: p, originalFilename: 'a.pdf', size: payload.length }])
+          .valid
+      ).toBe(false);
+    }
+
+    // 2. ZIP with EOCD Zip64 sentinel (cdOffset = 0xffffffff) hiding a Central Directory traversal entry
+    const cleanEntry = buildPkZipBuffer('safe.txt', 'ok');
+    const eocd = Buffer.alloc(22);
+    eocd[0] = 0x50; eocd[1] = 0x4b; eocd[2] = 0x05; eocd[3] = 0x06;
+    eocd.writeUInt16LE(1, 10);
+    eocd.writeUInt32LE(0, 12);
+    eocd.writeUInt32LE(0xffffffff, 16);
+    const badZip = Buffer.concat([cleanEntry, eocd]);
+    const pZip = createTempFile(badZip);
+    expect(
+      validateUploadedFilesForField(field, [{ filepath: pZip, originalFilename: 'a.zip', size: badZip.length }])
+        .valid
+    ).toBe(false);
+
+    // 3. CSV tab-break bypass (-1\t&HYPERLINK, @\tSUM)
+    for (const csv of ['a,b\n-1\t&HYPERLINK("https://evil.example","x"),1\n', 'a,b\n@\tSUM(1,1),2\n']) {
+      const p = createTempFile(Buffer.from(csv, 'utf8'));
+      expect(
+        validateUploadedFilesForField(field, [{ filepath: p, originalFilename: 'a.csv', size: csv.length }]).valid
+      ).toBe(false);
+    }
+
+    // 4. RTF nested-brace {\f1 } inside \fldinst
+    const nestedRtf = Buffer.from(
+      '{\\rtf1{\\field{\\*\\fldinst {\\f1 } DDEAUTO c:\\\\windows\\\\system32\\\\cmd.exe}}}',
+      'latin1'
+    );
+    const pRtf = createTempFile(nestedRtf);
+    expect(
+      validateUploadedFilesForField(field, [{ filepath: pRtf, originalFilename: 'a.rtf', size: nestedRtf.length }])
+        .valid
+    ).toBe(false);
+
+    // 5. resolveClientAccept strips unsafe extensions
+    expect(resolveClientAccept('.svg,.exe,.pdf,png')).toBe('.pdf,.png');
+    expect(resolveClientAccept('.svg,.exe')).toBe('.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx');
+  });
+
+  it('treats maxSubmissionsPerHour <= 0 or empty string as default 60 instead of blocking all submissions', async () => {
+    const createSubFn = vi.fn(async ({ data }) => ({ id: 1, ...data }));
+    const mockStrapi: any = {
+      plugin: (n: string) =>
+        n === 'strapi-plugin-form-builder-cms'
+          ? {
+              service: (s: string) =>
+                s === 'form'
+                  ? {
+                      findBySlug: vi.fn(async () => ({
+                        id: 1,
+                        slug: 'contact',
+                        publishedAt: '2026-01-01T00:00:00.000Z',
+                        publishedData: {
+                          fields: [{ id: 'f1', type: 'text', name: 'name', label: 'Name', required: true }],
+                          settings: { enableRateLimit: true, maxSubmissionsPerHour: 0 },
+                        },
+                      })),
+                    }
+                  : s === 'validation'
+                    ? validationFactory()
+                    : {},
+            }
+          : {},
+      db: { query: () => ({ count: vi.fn(async () => 0), create: createSubFn }) },
+    };
+    const svc = submissionServiceFactory({ strapi: mockStrapi });
+    const res = await svc.submit('contact', { name: 'Alice' }, { ip: '', userAgent: 'Vitest' });
+    expect(res.success).toBe(true);
   });
 });

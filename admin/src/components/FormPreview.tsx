@@ -232,8 +232,12 @@ function CheckboxGroupField({ field }: { field: FormField }) {
 
 function FileField({ field }: { field: FormField }) {
   const t = useT();
-  const maxMb = field.maxSizeMb || FILE_DEFAULTS.maxSizeMb;
-  const maxCnt = field.multiple ? (field.maxFiles || FILE_DEFAULTS.maxFiles) : 1;
+  const rawMaxMb = Number(field.maxSizeMb);
+  const maxMb = Number.isFinite(rawMaxMb) && rawMaxMb > 0 ? Math.min(Math.max(rawMaxMb, 0.1), 25) : FILE_DEFAULTS.maxSizeMb;
+  const rawMaxFiles = Math.floor(Number(field.maxFiles));
+  const maxCnt = field.multiple
+    ? (Number.isFinite(rawMaxFiles) && rawMaxFiles >= 1 ? Math.min(rawMaxFiles, 10) : FILE_DEFAULTS.maxFiles)
+    : 1;
   return (
     <div style={fieldWrap}>
       <Label field={field} />

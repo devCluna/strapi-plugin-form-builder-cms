@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Trash } from '@strapi/icons';
 import { FormField, FieldOption, ValidationRule, FILE_DEFAULTS } from '../types';
 import { C, FF, isDecorative } from '../ui';
@@ -64,6 +64,47 @@ function TextField({ label, value, onChange, hint, mono, placeholder }: {
       />
       {hint && <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>{hint}</span>}
     </Labeled>
+  );
+}
+
+function BoundedNumberInput({ value, fallback, min, max, integer, onCommit }: {
+  value: number; fallback: number; min: number; max: number; integer?: boolean; onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const clamp = (raw: string): number => {
+    const parsed = integer ? Math.floor(Number(raw)) : Number(raw);
+    if (!raw.trim() || !Number.isFinite(parsed)) return fallback;
+    return Math.min(Math.max(parsed, min), max);
+  };
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      className="sfb-inp"
+      value={draft}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw.trim() !== '') {
+          const parsed = integer ? Math.floor(Number(raw)) : Number(raw);
+          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+            onCommit(parsed);
+          }
+        }
+      }}
+      onBlur={() => {
+        const clamped = clamp(draft);
+        setDraft(String(clamped));
+        onCommit(clamped);
+      }}
+      style={inpStyle}
+    />
   );
 }
 
@@ -209,7 +250,7 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                     { label: t('fieldSettings.file.presetSheets'), value: '.csv,.xls,.xlsx,.ods' },
                     { label: t('fieldSettings.file.presetDefault'), value: FILE_DEFAULTS.accept },
                   ].map((p) => {
-                    const active = (field.accept || FILE_DEFAULTS.accept) === p.value;
+                    const active = (field.accept ?? FILE_DEFAULTS.accept) === p.value;
                     return (
                       <button
                         key={p.value}
@@ -241,17 +282,13 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
               </Labeled>
 
               <Labeled label={t('fieldSettings.file.maxSizeMb')}>
-                <input
-                  type="number"
+                <BoundedNumberInput
+                  key={`${field.id}-maxSizeMb`}
+                  value={field.maxSizeMb ?? FILE_DEFAULTS.maxSizeMb}
+                  fallback={FILE_DEFAULTS.maxSizeMb}
                   min={1}
                   max={25}
-                  className="sfb-inp"
-                  value={String(field.maxSizeMb ?? FILE_DEFAULTS.maxSizeMb)}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    update({ maxSizeMb: Number.isFinite(n) ? Math.min(Math.max(n, 1), 25) : 5 });
-                  }}
-                  style={inpStyle}
+                  onCommit={(n) => update({ maxSizeMb: n })}
                 />
                 <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>{t('fieldSettings.file.maxSizeMbHint')}</span>
               </Labeled>
@@ -263,17 +300,14 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                 </div>
                 {field.multiple && (
                   <Labeled label={t('fieldSettings.file.maxFiles')}>
-                    <input
-                      type="number"
+                    <BoundedNumberInput
+                      key={`${field.id}-maxFiles`}
+                      value={field.maxFiles ?? FILE_DEFAULTS.maxFiles}
+                      fallback={FILE_DEFAULTS.maxFiles}
                       min={1}
                       max={10}
-                      className="sfb-inp"
-                      value={String(field.maxFiles ?? FILE_DEFAULTS.maxFiles)}
-                      onChange={(e) => {
-                        const n = Math.floor(Number(e.target.value));
-                        update({ maxFiles: Number.isFinite(n) ? Math.min(Math.max(n, 1), 10) : 3 });
-                      }}
-                      style={inpStyle}
+                      integer
+                      onCommit={(n) => update({ maxFiles: n })}
                     />
                   </Labeled>
                 )}
