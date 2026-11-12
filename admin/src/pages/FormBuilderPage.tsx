@@ -10,7 +10,7 @@ import { FieldSettingsPanel } from '../components/FieldSettingsPanel';
 import { FormPreview } from '../components/FormPreview';
 import { EmbedModal } from '../components/EmbedModal';
 import { useFormsApi } from '../api';
-import { Form, FormField, FormSettings, FieldType } from '../types';
+import { Form, FormField, FormSettings, FieldType, FILE_DEFAULTS } from '../types';
 import { StyleMode } from '../components/StyleMode';
 import { GuidedTour, TourStep } from '../components/GuidedTour';
 import { PLUGIN_ID } from '../pluginId';
@@ -291,6 +291,11 @@ function createField(type: FieldType, order: number, t: TFunction): FormField {
     options: ['select', 'radio', 'checkbox-group'].includes(type)
       ? [{ label: t('field.optionDefault', { n: 1 }), value: 'option_1' }]
       : undefined,
+    ...(type === 'file'
+      ? {
+          ...FILE_DEFAULTS,
+        }
+      : {}),
     validation: [],
   };
 }

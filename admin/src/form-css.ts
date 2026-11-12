@@ -15,6 +15,10 @@ export const FORM_CSS = `
 .sfb-input:focus { border-color: var(--sfb-accent, #4945ff); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sfb-accent, #4945ff) 22%, transparent); }
 textarea.sfb-input { height: auto; min-height: 104px; padding: 11px 13px; resize: vertical; }
 select.sfb-input { appearance: none; cursor: pointer; }
+.sfb-file-input { height: auto; min-height: 44px; padding: 7px 10px; cursor: pointer; }
+.sfb-file-input::file-selector-button { margin-right: 10px; padding: 5px 12px; border: 1px solid var(--sfb-border, #dcdce4); border-radius: calc(var(--sfb-radius, 8px) - 2px); background: color-mix(in srgb, var(--sfb-text, #1f1f33) 8%, transparent); color: var(--sfb-text, #1f1f33); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; transition: border-color .15s; }
+.sfb-file-input::file-selector-button:hover { border-color: var(--sfb-accent, #4945ff); }
+.sfb-file-meta { font-size: 11px; color: var(--sfb-muted, #666687); margin: 2px 0 0; }
 [data-sfb-fields="underline"] .sfb-input { border: none; border-bottom: 2px solid var(--sfb-border, #dcdce4); border-radius: 0; padding-left: 2px; padding-right: 2px; background: transparent; }
 [data-sfb-fields="underline"] .sfb-input:focus { box-shadow: none; border-bottom-color: var(--sfb-accent, #4945ff); }
 [data-sfb-fields="filled"] .sfb-input { border-color: transparent; }

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Trash } from '@strapi/icons';
-import { FormField, FieldOption, ValidationRule } from '../types';
+import { FormField, FieldOption, ValidationRule, FILE_DEFAULTS } from '../types';
 import { C, FF, isDecorative } from '../ui';
 import { useT } from '../utils/useT';
 
@@ -64,6 +64,47 @@ function TextField({ label, value, onChange, hint, mono, placeholder }: {
       />
       {hint && <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>{hint}</span>}
     </Labeled>
+  );
+}
+
+function BoundedNumberInput({ value, fallback, min, max, integer, onCommit }: {
+  value: number; fallback: number; min: number; max: number; integer?: boolean; onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const clamp = (raw: string): number => {
+    const parsed = integer ? Math.floor(Number(raw)) : Number(raw);
+    if (!raw.trim() || !Number.isFinite(parsed)) return fallback;
+    return Math.min(Math.max(parsed, min), max);
+  };
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      className="sfb-inp"
+      value={draft}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw.trim() !== '') {
+          const parsed = integer ? Math.floor(Number(raw)) : Number(raw);
+          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+            onCommit(parsed);
+          }
+        }
+      }}
+      onBlur={() => {
+        const clamped = clamp(draft);
+        setDraft(String(clamped));
+        onCommit(clamped);
+      }}
+      style={inpStyle}
+    />
   );
 }
 
@@ -197,6 +238,81 @@ export function FieldSettingsPanel({ field, onChange }: Props) {
                 <button type="button" onClick={addOption} style={{ height: 32, border: `1px dashed ${C.n300}`, borderRadius: 4, color: C.p700, font: `600 12px ${FF}`, background: C.p100, cursor: 'pointer' }}>{t('fieldSettings.addOption')}</button>
               </div>
             </Labeled>
+          )}
+
+          {field.type === 'file' && (
+            <>
+              <Labeled label={t('fieldSettings.file.accept')}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 4 }}>
+                  {[
+                    { label: t('fieldSettings.file.presetDocs'), value: '.pdf,.doc,.docx,.txt,.rtf' },
+                    { label: t('fieldSettings.file.presetImages'), value: '.png,.jpg,.jpeg,.webp,.gif' },
+                    { label: t('fieldSettings.file.presetSheets'), value: '.csv,.xls,.xlsx,.ods' },
+                    { label: t('fieldSettings.file.presetDefault'), value: FILE_DEFAULTS.accept },
+                  ].map((p) => {
+                    const active = (field.accept ?? FILE_DEFAULTS.accept) === p.value;
+                    return (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => update({ accept: p.value })}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          border: `1px solid ${active ? C.p600 : C.n200}`,
+                          background: active ? C.p100 : C.n100,
+                          color: active ? C.p700 : C.n700,
+                          font: `600 11px ${FF}`,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  className="sfb-inp"
+                  value={field.accept ?? FILE_DEFAULTS.accept}
+                  placeholder=".pdf,.png,.jpg,.docx"
+                  onChange={(e) => update({ accept: e.target.value })}
+                  style={{ ...inpStyle, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, color: C.n700 }}
+                />
+                <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>{t('fieldSettings.file.acceptHint')}</span>
+              </Labeled>
+
+              <Labeled label={t('fieldSettings.file.maxSizeMb')}>
+                <BoundedNumberInput
+                  key={`${field.id}-maxSizeMb`}
+                  value={field.maxSizeMb ?? FILE_DEFAULTS.maxSizeMb}
+                  fallback={FILE_DEFAULTS.maxSizeMb}
+                  min={1}
+                  max={25}
+                  onCommit={(n) => update({ maxSizeMb: n })}
+                />
+                <span style={{ font: `400 11px ${FF}`, color: C.n500 }}>{t('fieldSettings.file.maxSizeMbHint')}</span>
+              </Labeled>
+
+              <div style={{ border: `1px solid ${C.n200}`, borderRadius: 5, padding: 11, display: 'flex', flexDirection: 'column', gap: 10, background: C.n0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ font: `600 12px ${FF}`, color: C.n800 }}>{t('fieldSettings.file.multiple')}</span>
+                  <Toggle on={!!field.multiple} onClick={() => update({ multiple: !field.multiple, maxFiles: field.maxFiles || FILE_DEFAULTS.maxFiles })} />
+                </div>
+                {field.multiple && (
+                  <Labeled label={t('fieldSettings.file.maxFiles')}>
+                    <BoundedNumberInput
+                      key={`${field.id}-maxFiles`}
+                      value={field.maxFiles ?? FILE_DEFAULTS.maxFiles}
+                      fallback={FILE_DEFAULTS.maxFiles}
+                      min={1}
+                      max={10}
+                      integer
+                      onCommit={(n) => update({ maxFiles: n })}
+                    />
+                  </Labeled>
+                )}
+              </div>
+            </>
           )}
 
           {field.type !== 'divider' && (

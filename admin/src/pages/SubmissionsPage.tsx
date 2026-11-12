@@ -13,12 +13,67 @@ import {
   Dialog,
   Checkbox,
 } from '@strapi/design-system';
-import { ArrowLeft, Search, Cog } from '@strapi/icons';
+import { ArrowLeft, Search, Cog, Paperclip } from '@strapi/icons';
 import { useFormsApi } from '../api';
-import { Form, FormField, FormSubmission } from '../types';
+import { Form, FormField, FormSubmission, UploadedFileItem } from '../types';
 import { PLUGIN_ID } from '../pluginId';
 import { C, FF } from '../ui';
 import { useT, TranslationKey } from '../utils/useT';
+
+function isFileList(val: unknown): val is UploadedFileItem[] {
+  return (
+    Array.isArray(val) &&
+    val.length > 0 &&
+    val.every(
+      (item) =>
+        item !== null &&
+        typeof item === 'object' &&
+        typeof (item as UploadedFileItem).name === 'string' &&
+        typeof (item as UploadedFileItem).url === 'string'
+    )
+  );
+}
+
+function isSafeFileUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  if (/^\/(?![/\\])/.test(url)) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isSnapshotFileField(
+  snapshotFields: FormSubmission['fields'],
+  fieldName: string
+): boolean {
+  return (
+    Array.isArray(snapshotFields) &&
+    snapshotFields.some((f) => f?.name === fieldName && f?.type === 'file')
+  );
+}
+
+function formatPlainValue(raw: unknown): string {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => (item !== null && typeof item === 'object' ? JSON.stringify(item) : String(item ?? '')))
+      .join(', ');
+  }
+  if (raw !== null && typeof raw === 'object') {
+    return JSON.stringify(raw);
+  }
+  return String(raw ?? '');
+}
+
+function formatFileSize(bytes?: number): string {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string; dot: string; label: TranslationKey }> = {
   new:      { bg: C.p100,   fg: C.p700,   dot: C.p600,   label: 'status.new' },
@@ -327,7 +382,10 @@ export function SubmissionsPage() {
                     <Td><Typography textColor="neutral600">{new Date(sub.createdAt).toLocaleString()}</Typography></Td>
                     {shownColumns.map((c) => {
                       const raw = sub.data?.[c.name];
-                      const val = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
+                      const val =
+                        isSnapshotFileField(sub.fields, c.name) && isFileList(raw)
+                          ? raw.map((f) => f.name).join(', ')
+                          : formatPlainValue(raw);
                       return (
                         <Td key={c.name}>
                           <Typography style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -381,6 +439,8 @@ export function SubmissionsPage() {
                   // Always render what was actually stored in `data` — never hide an
                   // answer. Field defs (submit-time snapshot, else current form) only
                   // supply nicer labels/order; unknown keys fall back to the raw key.
+                  // Attachment links are ONLY rendered when the submit-time snapshot
+                  // explicitly declares the field as type === 'file' (prevents spoofing).
                   const defs = selected.fields?.length ? selected.fields : dataFields;
                   const labelByName = new Map(defs.map((f) => [f.name, f.label] as const));
                   const orderByName = new Map(defs.map((f, i) => [f.name, f.order ?? i] as const));
@@ -389,11 +449,46 @@ export function SubmissionsPage() {
                   return entries.length === 0 ? (
                     <div style={{ padding: '12px 16px', font: `400 12px ${FF}`, color: C.n500 }}>{t('submissions.noData')}</div>
                   ) : entries.map(([name, raw], i) => {
-                    const val = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
+                    const files = isSnapshotFileField(selected.fields, name) && isFileList(raw) ? raw : null;
+                    const val = !files ? formatPlainValue(raw) : '';
                     return (
                       <div key={name || i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', columnGap: 16, padding: '10px 16px', background: i % 2 === 0 ? C.n0 : C.n100, alignItems: 'baseline' }}>
                         <span style={{ font: `600 12px ${FF}`, color: C.n600, wordBreak: 'break-word' }}>{labelByName.get(name) || name}</span>
-                        <span style={{ font: `400 13px ${FF}`, color: val ? C.n800 : C.n400, lineHeight: 1.5, wordBreak: 'break-word' }}>{val || '—'}</span>
+                        {files ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {files.map((f, idx) => {
+                              const sizeLabel = formatFileSize(f.size);
+                              const safeHref = isSafeFileUrl(f.url) ? f.url : null;
+                              return safeHref ? (
+                                <a
+                                  key={f.id || idx}
+                                  href={safeHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    font: `600 12px ${FF}`,
+                                    color: C.p600,
+                                    textDecoration: 'none',
+                                    wordBreak: 'break-all',
+                                  }}
+                                >
+                                  <Paperclip width="12px" height="12px" fill="currentColor" />
+                                  <span>{f.name}</span>
+                                  {sizeLabel && <span style={{ fontWeight: 400, color: C.n500 }}>({sizeLabel})</span>}
+                                </a>
+                              ) : (
+                                <span key={f.id || idx} style={{ font: `400 12px ${FF}`, color: C.n700 }}>
+                                  {f.name} {sizeLabel ? `(${sizeLabel})` : ''}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ font: `400 13px ${FF}`, color: val ? C.n800 : C.n400, lineHeight: 1.5, wordBreak: 'break-word' }}>{val || '—'}</span>
+                        )}
                       </div>
                     );
                   });
