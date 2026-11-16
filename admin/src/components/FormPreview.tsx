@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FormField, FormSettings } from '../types';
+import { FormField, FormSettings, FILE_DEFAULTS } from '../types';
 import { useT } from '../utils/useT';
 
 /* ── shared tokens ─────────────────────────────────────────────────── */
@@ -230,6 +230,39 @@ function CheckboxGroupField({ field }: { field: FormField }) {
   );
 }
 
+function FileField({ field }: { field: FormField }) {
+  const t = useT();
+  const rawMaxMb = Number(field.maxSizeMb);
+  const maxMb = Number.isFinite(rawMaxMb) && rawMaxMb > 0 ? Math.min(Math.max(rawMaxMb, 0.1), 25) : FILE_DEFAULTS.maxSizeMb;
+  const rawMaxFiles = Math.floor(Number(field.maxFiles));
+  const maxCnt = field.multiple
+    ? (Number.isFinite(rawMaxFiles) && rawMaxFiles >= 1 ? Math.min(rawMaxFiles, 10) : FILE_DEFAULTS.maxFiles)
+    : 1;
+  return (
+    <div style={fieldWrap}>
+      <Label field={field} />
+      <input
+        type="file"
+        accept={field.accept || FILE_DEFAULTS.accept}
+        multiple={!!field.multiple}
+        style={{
+          ...inputBase,
+          height: 'auto',
+          minHeight: 44,
+          padding: '8px 10px',
+          cursor: 'pointer',
+        }}
+      />
+      <p style={{ ...helpStyle, fontSize: 11 }}>
+        {field.multiple
+          ? t('preview.fileConstraintMultiple', { size: maxMb, count: maxCnt })
+          : t('preview.fileConstraintSingle', { size: maxMb })}
+      </p>
+      {field.helpText && <p style={helpStyle}>{field.helpText}</p>}
+    </div>
+  );
+}
+
 /* ── dispatcher ─────────────────────────────────────────────────────── */
 
 function PreviewField({ field }: { field: FormField }) {
@@ -265,12 +298,13 @@ function PreviewField({ field }: { field: FormField }) {
 
   let content: React.ReactNode;
   switch (field.type) {
-    case 'textarea':      content = <TextareaField field={field} />; break;
-    case 'select':        content = <SelectField field={field} />; break;
-    case 'radio':         content = <RadioField field={field} />; break;
-    case 'checkbox':      content = <CheckboxField field={field} />; break;
+    case 'textarea':       content = <TextareaField field={field} />; break;
+    case 'file':           content = <FileField field={field} />; break;
+    case 'select':         content = <SelectField field={field} />; break;
+    case 'radio':          content = <RadioField field={field} />; break;
+    case 'checkbox':       content = <CheckboxField field={field} />; break;
     case 'checkbox-group': content = <CheckboxGroupField field={field} />; break;
-    default:              content = <TextField field={field} />; break;
+    default:               content = <TextField field={field} />; break;
   }
 
   return <div className={field.cssClass || undefined} style={{ gridColumn: `span ${colSpan}` }}>{content}</div>;

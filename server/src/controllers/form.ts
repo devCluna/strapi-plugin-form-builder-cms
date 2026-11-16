@@ -1,5 +1,5 @@
 import { FORM_CSS } from '../../../admin/src/form-css';
-import { isSafeRedirect } from '../lib/embed';
+import { isSafeRedirect, resolveClientAccept, validateClientFiles } from '../lib/embed';
 
 const PLUGIN_ID = 'strapi-plugin-form-builder-cms';
 
@@ -12,15 +12,28 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+const ALLOWED_FIELD_STYLES = new Set(['outline', 'filled', 'underline']);
+
 function publicPageHtml(form: any): string {
   const title = escapeHtml(form.title || 'Form');
   const description = escapeHtml(form.description || '');
-  const formId = form.id;
+  const formId = Number(form.id) || 0;
   // resolved theme vars → inline style on the card so it themes together with the form inside
   const tv = (form.settings && form.settings.themeVars) || {};
   const cardVars = Object.keys(tv)
-    .map((k) => `${k}: ${String(tv[k]).replace(/[;{}<>]/g, '')}`)
+    .filter((k) => /^--sfb-[a-z0-9-]+$/i.test(k))
+    .map((k) => {
+      const cleanVal = String(tv[k]).replace(/[;{}<>\\]/g, '');
+      if (/url\s*\(|expression\s*\(/i.test(cleanVal)) return null;
+      return `${k}: ${cleanVal}`;
+    })
+    .filter(Boolean)
     .join('; ');
+  const rawFieldStyle = form.settings?.theme?.fieldStyle;
+  const fieldStyleAttr =
+    typeof rawFieldStyle === 'string' && ALLOWED_FIELD_STYLES.has(rawFieldStyle)
+      ? ` data-sfb-fields="${escapeHtml(rawFieldStyle)}"`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -58,7 +71,7 @@ function publicPageHtml(form: any): string {
   </style>
 </head>
 <body>
-  <div class="card"${form.settings && form.settings.theme && form.settings.theme.fieldStyle ? ` data-sfb-fields="${form.settings.theme.fieldStyle}"` : ''}>
+  <div class="card"${fieldStyleAttr}>
     <h1>${title}</h1>
     ${description ? `<p class="desc">${description}</p>` : ''}
     <div id="sfb-form-${formId}"></div>
@@ -76,6 +89,8 @@ function embedScript(): string {
   return `(function () {
   var PLUGIN = 'strapi-plugin-form-builder-cms';
   var isSafeRedirect = ${isSafeRedirect.toString()};
+  var resolveClientAccept = ${resolveClientAccept.toString()};
+  var validateClientFiles = ${validateClientFiles.toString()};
 
   function init() {
     document.querySelectorAll('script[data-form-id]').forEach(function (script) {
@@ -168,8 +183,15 @@ function embedScript(): string {
     }
 
     function showFieldErrors(errors) {
+      var allFieldNodes = formEl.querySelectorAll('[data-field-name]');
       Object.keys(errors).forEach(function (name) {
-        var fieldEl = formEl.querySelector('[data-field-name="' + name + '"]');
+        var fieldEl = null;
+        for (var idx = 0; idx < allFieldNodes.length; idx++) {
+          if (allFieldNodes[idx].getAttribute('data-field-name') === name) {
+            fieldEl = allFieldNodes[idx];
+            break;
+          }
+        }
         if (!fieldEl) return;
         fieldEl.classList.add('sfb-field--error');
         var errEl = document.createElement('p');
@@ -185,17 +207,38 @@ function embedScript(): string {
       btn.disabled = true;
       btn.textContent = 'Sending…';
 
-      // collect form data, handling checkbox-group arrays
+      var hasFileFields = (form.fields || []).some(function (f) { return f.type === 'file'; });
+
+      // collect non-file form data, handling checkbox-group arrays
       var data = {};
       new FormData(formEl).forEach(function (v, k) {
+        if (typeof File !== 'undefined' && v instanceof File) return;
         if (k.endsWith('[]')) {
           var name = k.slice(0, -2);
-          if (!data[name]) data[name] = [];
+          if (!Object.prototype.hasOwnProperty.call(data, name) || !Array.isArray(data[name])) {
+            data[name] = [];
+          }
           data[name].push(v);
         } else {
           data[k] = v;
         }
       });
+
+      var filesByField = {};
+      if (hasFileFields) {
+        formEl.querySelectorAll('input[type="file"]').forEach(function (inp) {
+          var list = inp.files ? Array.prototype.slice.call(inp.files) : [];
+          filesByField[inp.name] = list;
+        });
+
+        var clientErrors = validateClientFiles(form.fields || [], filesByField);
+        if (Object.keys(clientErrors).length > 0) {
+          btn.disabled = false;
+          btn.textContent = submitText;
+          showFieldErrors(clientErrors);
+          return;
+        }
+      }
 
       // normalize the provider's token field to a single key the server expects
       if (captchaOn) {
@@ -215,11 +258,28 @@ function embedScript(): string {
         }
       }
 
-      fetch(base + '/api/' + PLUGIN + '/forms/' + form.slug + '/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: data }),
-      })
+      var fetchOptions;
+      if (hasFileFields) {
+        var multipart = new FormData();
+        multipart.append('data', JSON.stringify(data));
+        Object.keys(filesByField).forEach(function (fieldName) {
+          (filesByField[fieldName] || []).forEach(function (fileObj) {
+            multipart.append('files.' + fieldName, fileObj);
+          });
+        });
+        fetchOptions = {
+          method: 'POST',
+          body: multipart,
+        };
+      } else {
+        fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: data }),
+        };
+      }
+
+      fetch(base + '/api/' + PLUGIN + '/forms/' + form.slug + '/submit', fetchOptions)
         .then(function (r) {
           return r.json().then(function (body) {
             if (!r.ok) return Promise.reject(body);
@@ -243,8 +303,7 @@ function embedScript(): string {
           msg.className = 'sfb-success';
           msg.textContent = (form.settings && form.settings.successMessage) || 'Form submitted successfully';
           wrap.appendChild(msg);
-          el.innerHTML = '';
-          el.appendChild(wrap);
+          el.replaceChildren(wrap);
         })
         .catch(function (body) {
           btn.disabled = false;
@@ -257,14 +316,13 @@ function embedScript(): string {
           } else {
             var errEl = document.createElement('p');
             errEl.className = 'sfb-error';
-            errEl.textContent = (body && body.message) ? body.message : 'Something went wrong. Please try again.';
+            errEl.textContent = (body && (body.message || (body.error && body.error.message))) || 'Something went wrong. Please try again.';
             formEl.insertBefore(errEl, btn);
           }
         });
     });
 
-    el.innerHTML = '';
-    el.appendChild(formEl);
+    el.replaceChildren(formEl);
   }
 
   function renderField(field) {
@@ -331,6 +389,29 @@ function embedScript(): string {
 
   function buildInput(field) {
     var id = 'sfb-' + field.id;
+
+    if (field.type === 'file') {
+      var fileWrap = document.createElement('div');
+      var fi = document.createElement('input');
+      fi.type = 'file';
+      fi.id = id;
+      fi.name = field.name;
+      fi.className = 'sfb-input sfb-file-input';
+      fi.accept = resolveClientAccept(field.accept);
+      if (field.multiple) fi.multiple = true;
+      fi.required = !!field.required;
+      fileWrap.appendChild(fi);
+
+      var meta = document.createElement('p');
+      meta.className = 'sfb-file-meta';
+      var rawMaxMb = Number(field.maxSizeMb);
+      var maxMb = isFinite(rawMaxMb) && rawMaxMb > 0 ? Math.min(Math.max(rawMaxMb, 0.1), 25) : 5;
+      var rawMaxFiles = Math.floor(Number(field.maxFiles));
+      var maxCnt = field.multiple ? (isFinite(rawMaxFiles) && rawMaxFiles >= 1 ? Math.min(rawMaxFiles, 10) : 3) : 1;
+      meta.textContent = 'Max ' + maxMb + ' MB' + (field.multiple ? ' per file (up to ' + maxCnt + ' files)' : '');
+      fileWrap.appendChild(meta);
+      return fileWrap;
+    }
 
     if (field.type === 'textarea') {
       var ta = document.createElement('textarea');
@@ -432,11 +513,10 @@ function embedScript(): string {
     function fail() {
       if (failed) return;
       failed = true;
-      box.innerHTML = '';
       var m = document.createElement('p');
       m.className = 'sfb-error';
       m.textContent = 'Verification could not load. Please contact the site owner.';
-      box.appendChild(m);
+      box.replaceChildren(m);
     }
     // fallback: an invalid site key renders nothing and fires no error — flag it after a grace period
     function guard() { setTimeout(function () { if (!box.querySelector('iframe')) fail(); }, 5000); }
@@ -520,8 +600,9 @@ export default {
   },
 
   async getPublicSchemaById(ctx: any) {
-    const { id } = ctx.params;
-    const schema = await strapi.plugin(PLUGIN_ID).service('form').getPublicSchemaById(Number(id));
+    const id = Number(ctx.params.id);
+    if (!Number.isInteger(id) || id <= 0) return ctx.notFound('Form not found');
+    const schema = await strapi.plugin(PLUGIN_ID).service('form').getPublicSchemaById(id);
     if (!schema) return ctx.notFound('Form not found');
     ctx.body = schema;
   },
@@ -544,18 +625,29 @@ export default {
     ctx.set('Content-Type', 'text/html; charset=utf-8');
 
     // Strapi's global security middleware sets a strict CSP (script-src 'self') that would
-    // block the CAPTCHA provider's script + iframe. Relax it just for this page when a
-    // provider is configured — overrides the header set upstream by helmet.
+    // block the CAPTCHA provider's script + iframe. Relax it just for the configured provider.
     const provider = form.settings?.captcha?.provider;
-    if (provider && provider !== 'none') {
+    if (provider === 'turnstile' || provider === 'recaptcha') {
+      const scriptOrigins =
+        provider === 'turnstile'
+          ? 'https://challenges.cloudflare.com'
+          : 'https://www.google.com https://www.gstatic.com';
+      const frameOrigins =
+        provider === 'turnstile'
+          ? 'https://challenges.cloudflare.com'
+          : 'https://www.google.com';
       ctx.set('Content-Security-Policy', [
         "default-src 'self'",
-        "script-src 'self' https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com",
-        "frame-src https://challenges.cloudflare.com https://www.google.com",
-        "style-src 'self' 'unsafe-inline' https:",
-        "img-src 'self' data: https:",
-        "connect-src 'self' https:",
-        "font-src 'self' https: data:",
+        `script-src 'self' ${scriptOrigins}`,
+        `frame-src ${frameOrigins}`,
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        `connect-src 'self' ${frameOrigins}`,
+        "font-src 'self' data:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
       ].join(';'));
     }
 

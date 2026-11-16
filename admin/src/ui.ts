@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Mail, Hashtag, Phone, Link, Lock, BulletList,
-  ChevronDown, Check, ListPlus, Calendar, Clock,
+  ChevronDown, Check, ListPlus, Calendar, Clock, Paperclip,
 } from '@strapi/icons';
 import { FieldType } from './types';
 
@@ -37,6 +37,7 @@ export const FIELD_CATEGORIES: { cat: FieldCategory; items: FieldMeta[] }[] = [
     { type: 'url', name: 'URL', cat: 'basic' },
     { type: 'password', name: 'Password', cat: 'basic' },
     { type: 'textarea', name: 'Textarea', cat: 'basic' },
+    { type: 'file', name: 'File upload', cat: 'basic' },
     { type: 'hidden', name: 'Hidden', cat: 'basic' },
   ]},
   { cat: 'choice', items: [
@@ -63,7 +64,7 @@ export const isDecorative = (t: FieldType) => DECORATIVE.includes(t);
 // styled letters for the ones the icon set has no clean equivalent for (T/H/¶/—/◉).
 const ICON_COMPONENTS: Partial<Record<FieldType, React.ComponentType<any>>> = {
   email: Mail, number: Hashtag, phone: Phone, url: Link, password: Lock,
-  textarea: BulletList, select: ChevronDown, checkbox: Check,
+  textarea: BulletList, file: Paperclip, select: ChevronDown, checkbox: Check,
   'checkbox-group': ListPlus, date: Calendar, time: Clock,
 };
 const GLYPHS: Partial<Record<FieldType, string>> = {

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid';
-import { FieldType, FormField } from './types';
+import { FieldType, FormField, FILE_DEFAULTS } from './types';
 import type { TFunction } from './utils/useT';
 
 // Minimal field factory for seeding templates — mirrors createField() in FormBuilderPage
@@ -19,6 +19,14 @@ function mk(seed: Seed, order: number): FormField {
     order,
     width: seed.width || 'full',
     options: seed.options,
+    ...(seed.type === 'file'
+      ? {
+          accept: seed.accept ?? FILE_DEFAULTS.accept,
+          maxSizeMb: seed.maxSizeMb ?? FILE_DEFAULTS.maxSizeMb,
+          multiple: seed.multiple ?? false,
+          maxFiles: seed.maxFiles ?? FILE_DEFAULTS.maxFiles,
+        }
+      : {}),
     validation: [],
   };
 }
@@ -71,6 +79,7 @@ export const TEMPLATES: FormTemplate[] = [
       { type: 'email', label: t('templates.field.email'), name: 'email', required: true, width: 'half' },
       { type: 'phone', label: t('templates.application.phone'), name: 'phone', width: 'half' },
       { type: 'url', label: t('templates.application.portfolio'), name: 'portfolio' },
+      { type: 'file', label: t('templates.application.resume'), name: 'resume', required: true, accept: '.pdf,.doc,.docx', maxSizeMb: 5 },
       { type: 'textarea', label: t('templates.application.coverNote'), name: 'coverNote', placeholder: t('templates.application.coverNotePlaceholder') },
     ]),
   },

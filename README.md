@@ -17,7 +17,7 @@ A visual drag-and-drop form builder plugin for [Strapi 5](https://strapi.io). Cr
 
 - **Drag-and-drop builder** — reorder fields visually inside the Strapi admin.
 - **Starter templates** — begin from Contact, Newsletter, Feedback, Job application, Event RSVP, or a blank form.
-- **Rich field types** — text, email, number, phone, URL, password, date, time, textarea, select, radio, checkbox, checkbox-group, hidden, heading, paragraph, divider.
+- **Rich field types** — text, email, number, phone, URL, password, date, time, textarea, file upload, select, radio, checkbox, checkbox-group, hidden, heading, paragraph, divider.
 - **Field validation** — required, minLength, maxLength, min value, max value, email, URL, regex pattern — all configurable per field with custom error messages.
 - **Draft / Publish** — draft edits stay private; the public page and embed always serve the last **published** version, so saving a draft never affects the live form.
 - **Public page** — one toggle generates a hosted page at `/api/strapi-plugin-form-builder-cms/page/:slug` (available once the form is published).
@@ -132,6 +132,8 @@ These routes require no authentication and are safe to call from the browser.
 
 ### Submit payload
 
+For forms without file fields (`application/json`):
+
 ```json
 {
   "data": {
@@ -140,6 +142,11 @@ These routes require no authentication and are safe to call from the browser.
   }
 }
 ```
+
+For forms with `file` fields (`multipart/form-data`):
+
+- `data`: JSON string containing the non-file field values (same shape as above)
+- `files.<fieldName>`: one or more file parts matching the `file` field's `name`
 
 ### Submit response — success
 
@@ -180,6 +187,7 @@ These routes require no authentication and are safe to call from the browser.
 | `date` | Date picker |
 | `time` | Time picker |
 | `textarea` | Multi-line text |
+| `file` | File upload — configurable allowed extensions, max file size (up to 25 MB), and single/multiple files; validated via binary magic bytes and stored in Strapi's Media Library (`API Uploads` folder) |
 | `select` | Dropdown — configure options in the settings panel |
 | `radio` | Radio group — configure options in the settings panel |
 | `checkbox` | Single checkbox (agree / consent) |
@@ -344,7 +352,7 @@ Pull requests are welcome. For major changes please open an issue first to discu
 - [x] Hidden tracking fields (UTM / referrer capture)
 - [x] Visual style editor (theming, live preview)
 - [ ] Email notifications on new submission
-- [ ] File upload field type
+- [x] File upload field type
 - [ ] Multi-step / wizard forms
 - [ ] Webhook on submit
 - [ ] Version history / restore

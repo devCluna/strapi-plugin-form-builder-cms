@@ -6,6 +6,7 @@ export type FieldType =
   | 'number'
   | 'phone'
   | 'textarea'
+  | 'file'
   | 'select'
   | 'radio'
   | 'checkbox'
@@ -30,6 +31,23 @@ export interface ValidationRule {
   message?: string;
 }
 
+export const FILE_DEFAULTS = {
+  accept: '.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx',
+  maxSizeMb: 5,
+  multiple: false,
+  maxFiles: 3,
+};
+
+export interface UploadedFileItem {
+  id: number;
+  documentId?: string;
+  name: string;
+  url: string;
+  mime: string;
+  size: number;
+  ext?: string;
+}
+
 export interface FormField {
   id: string;
   type: FieldType;
@@ -39,6 +57,10 @@ export interface FormField {
   helpText?: string;
   defaultValue?: any;
   queryParam?: string;
+  accept?: string;
+  maxSizeMb?: number;
+  multiple?: boolean;
+  maxFiles?: number;
   required: boolean;
   order: number;
   width: 'full' | 'half';
@@ -99,7 +121,12 @@ export interface FormSubmission {
   form: { id: number; title: string; slug: string };
   data: Record<string, any>;
   // schema snapshot captured at submit time (accurate even after the form changes)
-  fields?: Array<Pick<FormField, 'name' | 'label' | 'type' | 'order' | 'options'>>;
+  fields?: Array<
+    Pick<
+      FormField,
+      'name' | 'label' | 'type' | 'order' | 'options' | 'accept' | 'maxSizeMb' | 'multiple' | 'maxFiles'
+    >
+  >;
   metadata: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;
