@@ -342,6 +342,28 @@ export default ({ strapi }: { strapi: any }) => ({
   },
 
   async delete(id: number) {
+    const sub = await strapi.db.query(SUBMISSION_UID).findOne({ where: { id } });
+    if (!sub) return null;
+
+    // Remove the submission's uploads from the Media Library so no personal files are left behind.
+    // Only fields the submit-time snapshot declares as `file` count — those values can only come
+    // from validated uploads, so a forged id can never point this at someone else's media.
+    const uploadService = strapi.plugin?.('upload')?.service?.('upload');
+    const fileFields = (Array.isArray(sub.fields) ? sub.fields : []).filter((f: any) => f?.type === 'file');
+    for (const ff of fileFields) {
+      const items = sub.data?.[ff.name];
+      if (!isUploadedFileList(items)) continue;
+      for (const item of items) {
+        try {
+          const file = await uploadService?.findOne?.(item.id);
+          if (file) await uploadService.remove(file);
+        } catch (err: any) {
+          // best-effort: a missing or already-deleted file must not block deleting the submission
+          console.error('[sfb] could not remove uploaded file:', item.id, err?.message);
+        }
+      }
+    }
+
     return strapi.db.query(SUBMISSION_UID).delete({ where: { id } });
   },
 

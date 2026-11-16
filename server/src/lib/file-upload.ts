@@ -74,110 +74,13 @@ function startsWithBytes(buf: Buffer, bytes: number[], offset = 0): boolean {
   return true;
 }
 
-function decodePdfNameEscapes(nameToken: string): string {
-  return nameToken.replace(/#([0-9a-fA-F]{2})/g, (_m, hex) =>
-    String.fromCharCode(parseInt(hex, 16))
-  );
-}
-
-function maskSafePdfUris(rawText: string): { masked: string; hasUnsafeUriScheme: boolean } {
-  let out = '';
-  let i = 0;
-  let hasUnsafeUriScheme = false;
-  let inComment = false;
-
-  while (i < rawText.length) {
-    const ch = rawText[i];
-    if (ch === '\r' || ch === '\n') {
-      inComment = false;
-      out += ch;
-      i++;
-      continue;
-    }
-    if (inComment) {
-      out += ch;
-      i++;
-      continue;
-    }
-    if (ch === '%') {
-      inComment = true;
-      out += ch;
-      i++;
-      continue;
-    }
-
-    const prev = i === 0 ? ' ' : rawText[i - 1];
-    if (
-      rawText.startsWith('/URI', i) &&
-      /[\s<>()\[\]{}/]/.test(prev)
-    ) {
-      let j = i + 4;
-      while (j < rawText.length && (rawText[j] === ' ' || rawText[j] === '\t')) j++;
-      if (rawText[j] === '(') {
-        let depth = 1;
-        let k = j + 1;
-        let broken = false;
-        while (k < rawText.length && depth > 0) {
-          const c = rawText[k];
-          if (c === '\r' || c === '\n') {
-            broken = true;
-            break;
-          }
-          if (c === '\\' && k + 1 < rawText.length) {
-            k += 2;
-            continue;
-          }
-          if (c === '(') depth++;
-          else if (c === ')') depth--;
-          k++;
-        }
-        if (!broken && depth === 0) {
-          const uriBody = rawText.slice(j + 1, k - 1);
-          if (/^\s*(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/i.test(uriBody)) {
-            hasUnsafeUriScheme = true;
-          }
-          out += rawText.slice(i, j + 1) + ')';
-          i = k;
-          continue;
-        }
-      }
-    }
-
-    out += ch;
-    i++;
-  }
-
-  return { masked: out, hasUnsafeUriScheme };
-}
-
 function verifyPdfBuffer(buf: Buffer): { ok: boolean; reason?: string } {
   // %PDF-
+  // ponytail: signature only. Scanning the bytes for /JS, /OpenAction, etc. rejected valid PDFs
+  // (those names show up by chance in compressed streams and legitimately in Word/LaTeX output)
+  // and missed scripts inside compressed object streams. Use a real PDF parser if this is ever needed.
   if (!startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
     return { ok: false, reason: 'Invalid PDF header signature' };
-  }
-  const rawText = buf.toString('latin1');
-  const { masked: withoutUris, hasUnsafeUriScheme } = maskSafePdfUris(rawText);
-
-  if (hasUnsafeUriScheme) {
-    return { ok: false, reason: 'PDF contains disallowed active or script actions' };
-  }
-
-  // Match chained PDF Name sequences (e.g. /Type/Catalog/OpenAction, [1 0 R]/JS) and decode #XX escapes
-  // only inside PDF Name tokens rather than across compressed binary streams.
-  const nameChainRegex = /(?<=^|[\s<>()\[\]{}/])((?:\/[A-Za-z0-9_.#-]+)+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = nameChainRegex.exec(withoutUris)) !== null) {
-    const tokens = match[1].split('/').filter(Boolean);
-    for (const tok of tokens) {
-      const decodedName = `/${decodePdfNameEscapes(tok)}`;
-      if (
-        /^\/(?:JavaScript|JS|Launch|SubmitForm|ImportData|RichMedia|OpenAction|AA|GoToR|GoToE)$/i.test(
-          decodedName
-        )
-      ) {
-        return { ok: false, reason: 'PDF contains disallowed active or script actions' };
-      }
-    }
   }
   return { ok: true };
 }

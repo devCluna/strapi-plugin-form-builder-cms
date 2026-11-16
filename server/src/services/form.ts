@@ -71,6 +71,15 @@ export default ({ strapi }: { strapi: any }) => ({
   },
 
   async delete(id: number) {
+    // Delete the submissions through their service so their uploaded files go with them.
+    // ponytail: one at a time; batch it if a form ever holds many thousands of submissions
+    const submissions = await strapi.db
+      .query(`plugin::${PLUGIN_ID}.form-submission`)
+      .findMany({ where: { form: id }, select: ['id'] });
+    const submissionService = strapi.plugin(PLUGIN_ID).service('submission');
+    for (const s of submissions) {
+      await submissionService.delete(s.id);
+    }
     return strapi.db.query(FORM_UID).delete({ where: { id } });
   },
 
