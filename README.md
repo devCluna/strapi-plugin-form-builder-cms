@@ -187,7 +187,7 @@ For forms with `file` fields (`multipart/form-data`):
 | `date` | Date picker |
 | `time` | Time picker |
 | `textarea` | Multi-line text |
-| `file` | File upload — configurable allowed extensions, max file size (up to 25 MB), and single/multiple files; validated via binary magic bytes and stored in Strapi's Media Library (`API Uploads` folder) |
+| `file` | File upload — configurable allowed extensions, max file size (up to 25 MB), and single/multiple files; checked against an extension allow-list and file signatures, and stored in Strapi's Media Library (`API Uploads` folder). Files are served by your upload provider, so with a public provider anyone who has the URL can open them; they are removed when the submission or the form is deleted |
 | `select` | Dropdown — configure options in the settings panel |
 | `radio` | Radio group — configure options in the settings panel |
 | `checkbox` | Single checkbox (agree / consent) |
