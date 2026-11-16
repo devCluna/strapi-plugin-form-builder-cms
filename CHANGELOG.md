@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0-rc.2] - 2026-11-16
+
+### Added
+- File upload field (`file`) with allowed extensions, a max size of up to 25 MB, and single or multiple files. Files are checked against an extension allow-list and their signatures, and stored in the Media Library (`API Uploads` folder). Thanks to SalahAdDin. (#98)
+- Admin UI in Spanish, French, German, Arabic and Turkish. Strapi only loads English until the languages are enabled in `src/admin/app.tsx`, see the README. Thanks to SalahAdDin. (#97)
+- The accepted file types are shown next to the file input. (#100)
+
+### Fixed
+- Valid PDFs could be rejected when their bytes happened to contain names like `/JS` or `/OpenAction`. PDFs are now checked by signature only. (#99)
+- Uploaded files are removed from the Media Library when their submission or form is deleted. (#99)
+- File links in the Submissions view work with private upload providers: the URL is signed when it is shown. (#100)
+- The CSV export uses absolute file URLs. (#100)
+- The plugin installs in a fresh Strapi 5 app without `--legacy-peer-deps` (the `react-intl` peer now accepts 6.6). (#100)
+
+---
+
 ## [1.0.0-rc.2] - 2026-07-02
 
 ### Fixed
