@@ -43,6 +43,38 @@ export async function verifyCaptcha(provider: string, secret: string, token: str
   }
 }
 
+// Uploaded files of a submission. Only fields the submit-time snapshot declares as `file` count.
+// Their values can only come from validated uploads, never from a forged request body.
+function uploadedFilesOf(submission: any): UploadedFileItem[] {
+  const fields: any[] = Array.isArray(submission?.fields) ? submission.fields : [];
+  const lists = fields
+    .filter((f: any) => f?.type === 'file')
+    .map((f: any) => submission.data?.[f.name])
+    .filter(isUploadedFileList);
+  return ([] as UploadedFileItem[]).concat(...lists);
+}
+
+// Private upload providers (e.g. a private S3 bucket) only serve signed URLs, and those expire,
+// so the URL stored at submit time never works. Swap in a freshly signed one when reading.
+// Public providers return early without touching the database.
+async function signFileUrls(strapi: any, submissions: any[]): Promise<void> {
+  const upload = strapi.plugin?.('upload');
+  if (!(await upload?.provider?.isPrivate?.())) return;
+  const fileService = upload.service('file');
+  for (const submission of submissions) {
+    for (const item of uploadedFilesOf(submission)) {
+      try {
+        // raw row, not upload.findOne(): recent Strapi versions sign there already and signing twice breaks the URL
+        const file = await strapi.db.query('plugin::upload.file').findOne({ where: { id: item.id } });
+        if (file) item.url = (await fileService.signFileUrls(file)).url;
+      } catch (err: any) {
+        // best-effort: keep the stored URL if this file can't be signed
+        console.error('[sfb] could not sign file URL:', item.id, err?.message);
+      }
+    }
+  }
+}
+
 export default ({ strapi }: { strapi: any }) => ({
   // Validate a CAPTCHA secret key against the provider (called from the admin settings
   // "Test" button). A dummy token is sent: a valid secret comes back with an
@@ -315,6 +347,7 @@ export default ({ strapi }: { strapi: any }) => ({
       }),
       strapi.db.query(SUBMISSION_UID).count({ where }),
     ]);
+    await signFileUrls(strapi, results);
 
     return {
       results,
@@ -328,10 +361,12 @@ export default ({ strapi }: { strapi: any }) => ({
   },
 
   async findOne(id: number) {
-    return strapi.db.query(SUBMISSION_UID).findOne({
+    const submission = await strapi.db.query(SUBMISSION_UID).findOne({
       where: { id },
       populate: ['form'],
     });
+    if (submission) await signFileUrls(strapi, [submission]);
+    return submission;
   },
 
   async updateStatus(id: number, status: string) {
@@ -346,21 +381,14 @@ export default ({ strapi }: { strapi: any }) => ({
     if (!sub) return null;
 
     // Remove the submission's uploads from the Media Library so no personal files are left behind.
-    // Only fields the submit-time snapshot declares as `file` count — those values can only come
-    // from validated uploads, so a forged id can never point this at someone else's media.
     const uploadService = strapi.plugin?.('upload')?.service?.('upload');
-    const fileFields = (Array.isArray(sub.fields) ? sub.fields : []).filter((f: any) => f?.type === 'file');
-    for (const ff of fileFields) {
-      const items = sub.data?.[ff.name];
-      if (!isUploadedFileList(items)) continue;
-      for (const item of items) {
-        try {
-          const file = await uploadService?.findOne?.(item.id);
-          if (file) await uploadService.remove(file);
-        } catch (err: any) {
-          // best-effort: a missing or already-deleted file must not block deleting the submission
-          console.error('[sfb] could not remove uploaded file:', item.id, err?.message);
-        }
+    for (const item of uploadedFilesOf(sub)) {
+      try {
+        const file = await uploadService?.findOne?.(item.id);
+        if (file) await uploadService.remove(file);
+      } catch (err: any) {
+        // best-effort: a missing or already-deleted file must not block deleting the submission
+        console.error('[sfb] could not remove uploaded file:', item.id, err?.message);
       }
     }
 
@@ -380,6 +408,10 @@ export default ({ strapi }: { strapi: any }) => ({
       .filter((f: any) => !DECORATIVE_TYPES.has(f.type))
       .map((f: any) => f.name);
 
+    // The local provider stores relative URLs (/uploads/…), which mean nothing in a spreadsheet.
+    const rawServerUrl = strapi.config?.get?.('server.absoluteUrl');
+    const serverUrl = typeof rawServerUrl === 'string' ? rawServerUrl.replace(/\/+$/, '') : '';
+
     const headers = ['id', 'status', 'createdAt', ...fieldNames];
     const rows = submissions.map((s: any) => {
       const snapshotFields: any[] = Array.isArray(s.fields) ? s.fields : [];
@@ -393,7 +425,9 @@ export default ({ strapi }: { strapi: any }) => ({
         ...fieldNames.map((name: string) => {
           const val = s.data?.[name];
           if (fileFieldNames.has(name) && isUploadedFileList(val)) {
-            return formatFileCellForCsv(val);
+            return formatFileCellForCsv(
+              val.map((f) => (f.url.startsWith('/') ? { ...f, url: serverUrl + f.url } : f))
+            );
           }
           if (Array.isArray(val)) return val.join(', ');
           if (val !== null && typeof val === 'object') return JSON.stringify(val);

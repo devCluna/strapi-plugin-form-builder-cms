@@ -408,7 +408,7 @@ function embedScript(): string {
       var maxMb = isFinite(rawMaxMb) && rawMaxMb > 0 ? Math.min(Math.max(rawMaxMb, 0.1), 25) : 5;
       var rawMaxFiles = Math.floor(Number(field.maxFiles));
       var maxCnt = field.multiple ? (isFinite(rawMaxFiles) && rawMaxFiles >= 1 ? Math.min(rawMaxFiles, 10) : 3) : 1;
-      meta.textContent = 'Max ' + maxMb + ' MB' + (field.multiple ? ' per file (up to ' + maxCnt + ' files)' : '');
+      meta.textContent = fi.accept.split(',').join(', ') + ' · Max ' + maxMb + ' MB' + (field.multiple ? ' per file (up to ' + maxCnt + ' files)' : '');
       fileWrap.appendChild(meta);
       return fileWrap;
     }

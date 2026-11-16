@@ -308,8 +308,8 @@
   "preview.heading": "Heading",
   "preview.paragraph": "Paragraph text",
   "preview.noFields": "No fields added yet.",
-  "preview.fileConstraintSingle": "Max {size} MB",
-  "preview.fileConstraintMultiple": "Max {size} MB per file (up to {count} files)",
+  "preview.fileConstraintSingle": "{types} · Max {size} MB",
+  "preview.fileConstraintMultiple": "{types} · Max {size} MB per file (up to {count} files)",
 
   "embed.title": "Embed “{title}”",
   "embed.tab.script": "Script embed",

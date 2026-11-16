@@ -255,8 +255,8 @@ function FileField({ field }: { field: FormField }) {
       />
       <p style={{ ...helpStyle, fontSize: 11 }}>
         {field.multiple
-          ? t('preview.fileConstraintMultiple', { size: maxMb, count: maxCnt })
-          : t('preview.fileConstraintSingle', { size: maxMb })}
+          ? t('preview.fileConstraintMultiple', { types: (field.accept || FILE_DEFAULTS.accept).split(',').map((x) => x.trim()).join(', '), size: maxMb, count: maxCnt })
+          : t('preview.fileConstraintSingle', { types: (field.accept || FILE_DEFAULTS.accept).split(',').map((x) => x.trim()).join(', '), size: maxMb })}
       </p>
       {field.helpText && <p style={helpStyle}>{field.helpText}</p>}
     </div>
