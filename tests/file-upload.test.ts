@@ -716,14 +716,28 @@ describe('i18n parity for file upload translations across all 6 locales', () => 
     }
   });
 
-  it('aligns preview.fileConstraint* placeholders ({size}, {count}) across all 6 locales', () => {
+  it('aligns preview.fileConstraint* placeholders ({types}, {size}, {count}) across all 6 locales', () => {
     for (const [code, dict] of Object.entries(locales)) {
       const d = dict as Record<string, string>;
+      expect(d['preview.fileConstraintSingle'], `${code} single`).toContain('{types}');
+      expect(d['preview.fileConstraintMultiple'], `${code} multiple`).toContain('{types}');
       expect(d['preview.fileConstraintSingle'], `${code} single`).toContain('{size}');
       expect(d['preview.fileConstraintSingle'], `${code} single`).not.toMatch(/\{(?:accept|maxSizeMb|maxFiles)\}/);
       expect(d['preview.fileConstraintMultiple'], `${code} multiple`).toContain('{size}');
       expect(d['preview.fileConstraintMultiple'], `${code} multiple`).toContain('{count}');
       expect(d['preview.fileConstraintMultiple'], `${code} multiple`).not.toMatch(/\{(?:accept|maxSizeMb|maxFiles)\}/);
+    }
+  });
+
+  it('uses the same placeholders as en.json in every locale, for every key', () => {
+    // ICU argument names only ({name} or {name, plural, ...}), not the words inside plural branches
+    const args = (msg: string) => [...new Set([...msg.matchAll(/\{(\w+)\s*[,}]/g)].map((m) => m[1]))].sort();
+    for (const [code, dict] of Object.entries(locales)) {
+      const d = dict as Record<string, string>;
+      expect(Object.keys(d).sort(), `${code} keys`).toEqual(Object.keys(en).sort());
+      for (const [key, msg] of Object.entries(en as Record<string, string>)) {
+        expect(args(d[key]), `${code} ${key}`).toEqual(args(msg));
+      }
     }
   });
 });
@@ -1147,7 +1161,9 @@ describe('uploaded files follow their submission (delete, signed URLs, CSV)', ()
       config: { get: (key: any) => (key === 'server.absoluteUrl' ? opts.absoluteUrl : undefined) },
       db: {
         query: (uid: string) =>
-          uid === 'plugin::upload.file' ? { findOne: vi.fn(async ({ where }: any) => ({ id: where.id })) } : query,
+          uid === 'plugin::upload.file'
+            ? { findOne: vi.fn(async ({ where }: any) => ({ id: where.id, url: `/uploads/${where.id}` })) }
+            : query,
       },
       plugin: (name: string) =>
         name === 'upload'
@@ -1155,8 +1171,9 @@ describe('uploaded files follow their submission (delete, signed URLs, CSV)', ()
               provider: { isPrivate: async () => !!opts.isPrivate },
               service: (svc: string) =>
                 svc === 'upload'
-                  ? { findOne: vi.fn(async (id: number) => ({ id })), remove: removeFn }
-                  : { signFileUrls: vi.fn(async (file: any) => ({ ...file, url: `https://signed.example/${file.id}` })) },
+                  ? // like Strapi 5.62: findOne hands back an already signed URL
+                    { findOne: vi.fn(async (id: number) => ({ id, url: `/uploads/${id}?sig=1` })), remove: removeFn }
+                  : { signFileUrls: vi.fn(async (file: any) => ({ ...file, url: `${file.url}?sig=1` })) },
             }
           : undefined,
     };
@@ -1185,14 +1202,25 @@ describe('uploaded files follow their submission (delete, signed URLs, CSV)', ()
 
   it('signs file URLs on read for private providers and leaves public ones untouched', async () => {
     const priv = await setup({ isPrivate: true }).svc.find(1);
-    expect(priv.results[0].data.resume.map((f: any) => f.url)).toEqual([
-      'https://signed.example/1',
-      'https://signed.example/2',
-    ]);
+    // signed exactly once (signing the URL upload.findOne returns would give ?sig=1?sig=1)
+    expect(priv.results[0].data.resume.map((f: any) => f.url)).toEqual(['/uploads/1?sig=1', '/uploads/2?sig=1']);
     expect(priv.results[0].data.notes[0].url).toBe('/uploads/cv-99.pdf');
 
     const pub = await setup().svc.findOne(7);
     expect(pub.data.resume[0].url).toBe('/uploads/cv-1.pdf');
+  });
+
+  it('shows the accepted file types next to the public file input', () => {
+    const ctx: any = { set: () => {}, body: '' };
+    formController.serveEmbed(ctx);
+    expect(ctx.body).toContain("meta.textContent = fi.accept.split(',').join(', ') + ' · Max '");
+  });
+
+  it('accepts the react-intl version Strapi 5 ships (6.6.x) as a peer', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+    const [major, minor] = String(pkg.peerDependencies['react-intl']).replace(/^\^/, '').split('.').map(Number);
+    expect(major).toBe(6);
+    expect(minor).toBeLessThanOrEqual(6);
   });
 
   it('exports absolute file URLs in the CSV', async () => {

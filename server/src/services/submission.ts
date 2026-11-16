@@ -43,8 +43,8 @@ export async function verifyCaptcha(provider: string, secret: string, token: str
   }
 }
 
-// Uploaded files of a submission. Only fields the submit-time snapshot declares as `file` count —
-// those values can only come from validated uploads, never from a forged request body.
+// Uploaded files of a submission. Only fields the submit-time snapshot declares as `file` count.
+// Their values can only come from validated uploads, never from a forged request body.
 function uploadedFilesOf(submission: any): UploadedFileItem[] {
   const fields: any[] = Array.isArray(submission?.fields) ? submission.fields : [];
   const lists = fields
