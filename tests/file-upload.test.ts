@@ -1145,7 +1145,10 @@ describe('uploaded files follow their submission (delete, signed URLs, CSV)', ()
     };
     const strapi: any = {
       config: { get: (key: any) => (key === 'server.absoluteUrl' ? opts.absoluteUrl : undefined) },
-      db: { query: () => query },
+      db: {
+        query: (uid: string) =>
+          uid === 'plugin::upload.file' ? { findOne: vi.fn(async ({ where }: any) => ({ id: where.id })) } : query,
+      },
       plugin: (name: string) =>
         name === 'upload'
           ? {

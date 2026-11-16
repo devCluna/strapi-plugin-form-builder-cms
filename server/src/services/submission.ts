@@ -60,12 +60,12 @@ function uploadedFilesOf(submission: any): UploadedFileItem[] {
 async function signFileUrls(strapi: any, submissions: any[]): Promise<void> {
   const upload = strapi.plugin?.('upload');
   if (!(await upload?.provider?.isPrivate?.())) return;
-  const uploadService = upload.service('upload');
   const fileService = upload.service('file');
   for (const submission of submissions) {
     for (const item of uploadedFilesOf(submission)) {
       try {
-        const file = await uploadService.findOne(item.id);
+        // raw row, not upload.findOne(): recent Strapi versions sign there already and signing twice breaks the URL
+        const file = await strapi.db.query('plugin::upload.file').findOne({ where: { id: item.id } });
         if (file) item.url = (await fileService.signFileUrls(file)).url;
       } catch (err: any) {
         // best-effort: keep the stored URL if this file can't be signed
