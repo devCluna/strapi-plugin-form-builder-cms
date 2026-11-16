@@ -73,6 +73,20 @@ npm run develop
 
 The **Form Builder** entry will appear in the Strapi admin sidebar.
 
+### Admin languages (optional)
+
+The plugin's admin UI ships in English, Spanish, French, German, Arabic and Turkish. Strapi only loads English unless you enable more languages in `src/admin/app.tsx` (or `app.js`):
+
+```ts
+export default {
+  config: {
+    locales: ['es', 'fr', 'de', 'ar', 'tr'],
+  },
+};
+```
+
+Rebuild the admin, then each user picks their language under **Profile → Interface language**.
+
 ---
 
 ## Usage
