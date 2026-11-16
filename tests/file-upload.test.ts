@@ -21,6 +21,7 @@ import { validateClientFiles, resolveClientAccept } from '../server/src/lib/embe
 import submissionServiceFactory, { verifyCaptcha } from '../server/src/services/submission';
 import submissionController from '../server/src/controllers/submission';
 import formController from '../server/src/controllers/form';
+import formServiceFactory from '../server/src/services/form';
 import validationFactory from '../server/src/services/validation';
 
 import en from '../admin/src/translations/en.json';
@@ -1114,5 +1115,87 @@ describe('hardening & regression fixes', () => {
     const svc = submissionServiceFactory({ strapi: mockStrapi });
     const res = await svc.submit('contact', { name: 'Alice' }, { ip: '', userAgent: 'Vitest' });
     expect(res.success).toBe(true);
+  });
+});
+
+describe('uploaded files follow their submission (delete, signed URLs, CSV)', () => {
+  const FORM_PLUGIN = 'strapi-plugin-form-builder-cms';
+  const fileItem = (id: number) => ({ id, name: `cv-${id}.pdf`, url: `/uploads/cv-${id}.pdf`, mime: 'application/pdf', size: 10 });
+  const submission = () => ({
+    id: 7,
+    status: 'new',
+    createdAt: '2026-01-01',
+    fields: [
+      { name: 'resume', label: 'Resume', type: 'file' },
+      { name: 'notes', label: 'Notes', type: 'text' },
+    ],
+    // `notes` is shaped like a file list but its field is not a file field: it must be left alone
+    data: { resume: [fileItem(1), fileItem(2)], notes: [fileItem(99)] },
+  });
+
+  function setup(opts: { isPrivate?: boolean; absoluteUrl?: string } = {}) {
+    const sub = submission();
+    const removeFn = vi.fn(async () => {});
+    const deleteFn = vi.fn(async () => sub);
+    const query = {
+      findOne: vi.fn(async () => sub),
+      findMany: vi.fn(async () => [sub]),
+      count: vi.fn(async () => 1),
+      delete: deleteFn,
+    };
+    const strapi: any = {
+      config: { get: (key: any) => (key === 'server.absoluteUrl' ? opts.absoluteUrl : undefined) },
+      db: { query: () => query },
+      plugin: (name: string) =>
+        name === 'upload'
+          ? {
+              provider: { isPrivate: async () => !!opts.isPrivate },
+              service: (svc: string) =>
+                svc === 'upload'
+                  ? { findOne: vi.fn(async (id: number) => ({ id })), remove: removeFn }
+                  : { signFileUrls: vi.fn(async (file: any) => ({ ...file, url: `https://signed.example/${file.id}` })) },
+            }
+          : undefined,
+    };
+    return { svc: submissionServiceFactory({ strapi }), removeFn, deleteFn, query };
+  }
+
+  it('deleting a submission removes only the files of its file fields', async () => {
+    const { svc, removeFn, deleteFn } = setup();
+    await svc.delete(7);
+    expect(removeFn.mock.calls.map((c: any[]) => c[0].id)).toEqual([1, 2]);
+    expect(deleteFn).toHaveBeenCalledWith({ where: { id: 7 } });
+  });
+
+  it('deleting a form deletes its submissions through the submission service', async () => {
+    const deleteSubmission = vi.fn(async () => {});
+    const deleteForm = vi.fn(async () => ({ id: 3 }));
+    const strapi: any = {
+      db: { query: () => ({ findMany: vi.fn(async () => [{ id: 7 }, { id: 8 }]), delete: deleteForm }) },
+      plugin: (name: string) =>
+        name === FORM_PLUGIN ? { service: () => ({ delete: deleteSubmission }) } : undefined,
+    };
+    await formServiceFactory({ strapi }).delete(3);
+    expect(deleteSubmission.mock.calls.map((c: any[]) => c[0])).toEqual([7, 8]);
+    expect(deleteForm).toHaveBeenCalledWith({ where: { id: 3 } });
+  });
+
+  it('signs file URLs on read for private providers and leaves public ones untouched', async () => {
+    const priv = await setup({ isPrivate: true }).svc.find(1);
+    expect(priv.results[0].data.resume.map((f: any) => f.url)).toEqual([
+      'https://signed.example/1',
+      'https://signed.example/2',
+    ]);
+    expect(priv.results[0].data.notes[0].url).toBe('/uploads/cv-99.pdf');
+
+    const pub = await setup().svc.findOne(7);
+    expect(pub.data.resume[0].url).toBe('/uploads/cv-1.pdf');
+  });
+
+  it('exports absolute file URLs in the CSV', async () => {
+    const { svc, query } = setup({ absoluteUrl: 'https://cms.example.com/' });
+    query.findOne.mockResolvedValueOnce({ id: 1, fields: [{ name: 'resume', type: 'file' }] } as any);
+    const csv = await svc.export(1, 'csv');
+    expect(csv).toContain('cv-1.pdf (https://cms.example.com/uploads/cv-1.pdf)');
   });
 });
