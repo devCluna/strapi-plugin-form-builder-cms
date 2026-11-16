@@ -91,6 +91,8 @@ export interface FormSettings {
   redirectUrl: string;
   customCss: string;
   publicPage: boolean;
+  // BCP-47 code the form is written in. A label only: nothing is translated from it.
+  language?: string;
   captcha?: {
     provider: 'none' | 'turnstile' | 'recaptcha';
     siteKey: string;
@@ -132,4 +134,15 @@ export interface FormSubmission {
   userAgent?: string;
   status: 'new' | 'read' | 'archived';
   createdAt: string;
+}
+
+export const FORM_LANGUAGES = ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'pl', 'ar', 'tr', 'ru', 'zh', 'ja', 'ko'];
+
+// Language name in the admin's own language ("Spanish" / "Español"), falling back to the code.
+export function languageName(code: string, displayLocale: string): string {
+  try {
+    return new Intl.DisplayNames([displayLocale], { type: 'language' }).of(code) || code;
+  } catch {
+    return code;
+  }
 }

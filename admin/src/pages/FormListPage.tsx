@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useIntl } from 'react-intl';
 import {
   Box,
   Button,
@@ -21,7 +22,7 @@ import {
   Mail, BulletList, Message, Calendar, Feather,
 } from '@strapi/icons';
 import { useFormsApi } from '../api';
-import { Form } from '../types';
+import { Form, FORM_LANGUAGES, languageName } from '../types';
 import { PLUGIN_ID } from '../pluginId';
 import { TEMPLATES, FormTemplate } from '../templates';
 import { useT } from '../utils/useT';
@@ -126,10 +127,14 @@ export function FormListPage() {
     load();
   };
 
+  const { locale } = useIntl();
+  const adminLang = locale.split('-')[0];
+  const [language, setLanguage] = useState(FORM_LANGUAGES.includes(adminLang) ? adminLang : 'en');
+
   const pickTemplate = (tpl: FormTemplate) => {
     setPickerOpen(false);
     navigate(`/plugins/${PLUGIN_ID}/builder/new`, {
-      state: { templateFields: tpl.fields(t), templateTitle: t(`templates.${tpl.key}.title`) },
+      state: { templateFields: tpl.fields(t), templateTitle: t(`templates.${tpl.key}.title`), language },
     });
   };
 
@@ -267,7 +272,16 @@ export function FormListPage() {
                           onCheckedChange={() => toggleOne(form.id)}
                         />
                       </Td>
-                      <Td><Typography fontWeight="semiBold">{form.title}</Typography></Td>
+                      <Td>
+                        <Flex gap={2} alignItems="center">
+                          <Typography fontWeight="semiBold">{form.title}</Typography>
+                          {form.settings?.language && (
+                            <span title={languageName(form.settings.language, locale)} style={{ padding: '1px 6px', borderRadius: 4, background: C.n100, border: `1px solid ${C.n200}`, font: '700 10px var(--ff, -apple-system, sans-serif)', color: C.n600 }}>
+                              {form.settings.language.toUpperCase()}
+                            </span>
+                          )}
+                        </Flex>
+                      </Td>
                       <Td>
                         <Typography textColor="neutral600" style={{ fontFamily: 'monospace' }}>
                           {form.slug}
@@ -338,6 +352,16 @@ export function FormListPage() {
                 <Typography variant="omega" textColor="neutral600">
                   {t('list.picker.body')}
                 </Typography>
+              </Box>
+              <Box marginBottom={4}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 12px var(--ff, -apple-system, sans-serif)', color: C.n600 }}>
+                  {t('settings.language')}
+                  <select value={language} onChange={(e) => setLanguage(e.target.value)} style={{ height: 32, padding: '0 8px', borderRadius: 4, border: `1px solid ${C.n200}`, background: C.n0, cursor: 'pointer' }}>
+                    {FORM_LANGUAGES.map((code) => (
+                      <option key={code} value={code}>{languageName(code, locale)}</option>
+                    ))}
+                  </select>
+                </label>
               </Box>
               {templateGrid}
             </Dialog.Body>

@@ -1044,6 +1044,29 @@ describe('hardening & regression fixes', () => {
     expect(headers['Content-Security-Policy']).not.toContain('www.google.com');
   });
 
+  it("sets the public page's html lang from the form language, ignoring malformed values", async () => {
+    const pageFor = async (language: any) => {
+      (globalThis as any).strapi = {
+        plugin: () => ({
+          service: () => ({
+            getPublicSchema: async () => ({
+              data: { id: 1, slug: 's', title: 'T', fields: [], settings: { publicPage: true, language } },
+            }),
+          }),
+        }),
+      };
+      const ctx: any = { params: { slug: 's' }, set: () => {}, notFound: vi.fn(), body: '' };
+      await formController.servePublicPage(ctx);
+      return ctx.body as string;
+    };
+    expect(await pageFor('es')).toContain('<html lang="es">');
+    expect(await pageFor('pt-BR')).toContain('<html lang="pt-BR">');
+    expect(await pageFor(undefined)).toContain('<html lang="en">');
+    const evil = await pageFor('"><script>alert(1)</script>');
+    expect(evil).toContain('<html lang="en">');
+    expect(evil).not.toContain('<script>alert(1)</script>');
+  });
+
   it('catches ZIP Zip64/EOCD bypass, CSV tab-formula bypass, and RTF nested fldinst bypass', () => {
     const field = { name: 'doc', label: 'Doc', accept: '.pdf,.zip,.csv,.rtf', maxSizeMb: 5 };
 

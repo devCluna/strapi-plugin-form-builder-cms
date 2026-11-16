@@ -18,6 +18,9 @@ function publicPageHtml(form: any): string {
   const title = escapeHtml(form.title || 'Form');
   const description = escapeHtml(form.description || '');
   const formId = Number(form.id) || 0;
+  const rawLang = form.settings && form.settings.language;
+  // inserted into HTML: only a well-formed BCP-47 tag gets through
+  const lang = typeof rawLang === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(rawLang) ? rawLang : 'en';
   // resolved theme vars → inline style on the card so it themes together with the form inside
   const tv = (form.settings && form.settings.themeVars) || {};
   const cardVars = Object.keys(tv)
@@ -36,7 +39,7 @@ function publicPageHtml(form: any): string {
       : '';
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -118,6 +121,7 @@ function embedScript(): string {
     // let the plugin's own validation + server errors drive messages instead of
     // the browser's native required bubble
     formEl.noValidate = true;
+    if (form.settings && form.settings.language) formEl.lang = form.settings.language;
 
     // apply the form's resolved theme (variables + the field-style variant attribute)
     if (form.settings && form.settings.themeVars) {

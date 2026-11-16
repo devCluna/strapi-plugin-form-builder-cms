@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useIntl } from 'react-intl';
 import { Box, Flex, Loader } from '@strapi/design-system';
 import { useNotification } from '@strapi/strapi/admin';
 import { ArrowLeft, Pencil } from '@strapi/icons';
@@ -10,7 +11,7 @@ import { FieldSettingsPanel } from '../components/FieldSettingsPanel';
 import { FormPreview } from '../components/FormPreview';
 import { EmbedModal } from '../components/EmbedModal';
 import { useFormsApi } from '../api';
-import { Form, FormField, FormSettings, FieldType, FILE_DEFAULTS } from '../types';
+import { Form, FormField, FormSettings, FieldType, FILE_DEFAULTS, FORM_LANGUAGES, languageName } from '../types';
 import { StyleMode } from '../components/StyleMode';
 import { GuidedTour, TourStep } from '../components/GuidedTour';
 import { PLUGIN_ID } from '../pluginId';
@@ -105,6 +106,7 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
   onOpenStyle: () => void;
 }) {
   const t = useT();
+  const { locale } = useIntl();
   // edits stay in a local buffer — they only reach the form on "Save settings"
   const [description, setDescription] = useState(initialDescription);
   const [settings, setSettings] = useState<FormSettings>(initialSettings);
@@ -157,6 +159,16 @@ function SettingsDrawer({ initialDescription, initialSettings, slug, publishedAt
             <div style={dGroupT}>{t('settings.general')}</div>
             <label style={dLbl}>{t('settings.description')}</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...dInp, height: 'auto', minHeight: 62, padding: '10px 11px', lineHeight: 1.5, resize: 'vertical' }} />
+            <div style={{ marginTop: 16 }}>
+              <label style={dLbl}>{t('settings.language')}</label>
+              <select value={settings.language || ''} onChange={(e) => patch({ language: e.target.value || undefined })} style={{ ...dInp, cursor: 'pointer' }}>
+                <option value="">{t('settings.language.none')}</option>
+                {FORM_LANGUAGES.map((code) => (
+                  <option key={code} value={code}>{languageName(code, locale)}</option>
+                ))}
+              </select>
+              <div style={{ font: `400 11px ${FF}`, color: C.n500, marginTop: 4 }}>{t('settings.language.hint')}</div>
+            </div>
             <div style={{ marginTop: 16 }}>
               <label style={dLbl}>{t('settings.submitButton')}</label>
               <input value={settings.submitButtonText} onChange={(e) => patch({ submitButtonText: e.target.value })} style={dInp} />
@@ -302,6 +314,7 @@ function createField(type: FieldType, order: number, t: TFunction): FormField {
 
 export function FormBuilderPage() {
   const t = useT();
+  const { locale } = useIntl();
   const defaultSettings = useMemo(() => makeDefaultSettings(t), [t]);
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -310,7 +323,7 @@ export function FormBuilderPage() {
   const { toggleNotification } = useNotification();
   const isNew = !id || id === 'new';
   // seed a brand-new form from a template chosen on the list page (router state)
-  const seed = (location.state || {}) as { templateFields?: FormField[]; templateTitle?: string };
+  const seed = (location.state || {}) as { templateFields?: FormField[]; templateTitle?: string; language?: string };
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -318,7 +331,7 @@ export function FormBuilderPage() {
   const [title, setTitle] = useState(seed.templateTitle || t('builder.newForm'));
   const [description, setDescription] = useState('');
   const [fields, setFields] = useState<FormField[]>(seed.templateFields || []);
-  const [settings, setSettings] = useState<FormSettings>(defaultSettings);
+  const [settings, setSettings] = useState<FormSettings>(() => ({ ...defaultSettings, language: seed.language }));
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [mode, setMode] = useState<'fields' | 'style'>('fields');
   const [showTour, setShowTour] = useState(false);
@@ -526,6 +539,11 @@ export function FormBuilderPage() {
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.dot }} />
             {status.label}
           </span>
+          {settings.language && (
+            <span title={languageName(settings.language, locale)} style={{ height: 24, padding: '0 8px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', font: `700 11px ${FF}`, letterSpacing: '.3px', background: C.n150, color: C.n700 }}>
+              {settings.language.toUpperCase()}
+            </span>
+          )}
         </div>
         {settings.enableStyle && (
           <div data-tour="styletab" style={{ display: 'flex', border: `1px solid ${C.n200}`, borderRadius: 8, overflow: 'hidden', flex: 'none' }}>
